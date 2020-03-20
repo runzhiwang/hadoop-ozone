@@ -225,7 +225,7 @@ public class SCMClientProtocolServer implements
   }
 
   private ContainerWithPipeline getContainerWithPipelineCommon(
-      long containerID) {
+      long containerID) throws IOException {
     final ContainerID cid = ContainerID.valueof(containerID);
     final ContainerInfo container = scm.getContainerManager()
         .getContainer(cid);
@@ -278,7 +278,8 @@ public class SCMClientProtocolServer implements
       AUDIT.logReadFailure(buildAuditMessageForFailure(
           SCMAction.GET_CONTAINER_WITH_PIPELINE,
           Collections.singletonMap("containerID",
-              ContainerID.valueof(containerID).toString())), ex));
+              ContainerID.valueof(containerID).toString()), ex));
+      throw ex;
     }
   }
 
