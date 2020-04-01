@@ -121,7 +121,6 @@ public class TestOMClientRequestWithUserInfo {
     Assert.assertEquals(inetAddress.getHostAddress(),
         remoteAddress.getHostAddress());
     Assert.assertEquals(userGroupInformation.getUserName(), ugi.getUserName());
-    //System.err.println("wangjie inetAddress.getHostName:" + inetAddress.getHostName() + " hostName:" + hostName);
     Assert.assertEquals(inetAddress.getHostName(), hostName);
   }
 }
