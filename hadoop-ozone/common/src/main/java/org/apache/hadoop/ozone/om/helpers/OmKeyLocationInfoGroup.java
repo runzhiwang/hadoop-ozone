@@ -89,7 +89,7 @@ public class OmKeyLocationInfoGroup {
     // older ones. e.g. v1 has B1, then v2, v3...will all have B1 and only add
     // more
     List<OmKeyLocationInfo> newList = new ArrayList<>();
-    newList.addAll(locationList);
+    //newList.addAll(locationList);
     for (OmKeyLocationInfo newInfo : newLocationList) {
       // all these new blocks will have addVersion of current version + 1
       newInfo.setCreateVersion(version + 1);
