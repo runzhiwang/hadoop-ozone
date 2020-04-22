@@ -349,20 +349,20 @@ public class KeyInputStream extends InputStream implements Seekable {
    * @throws IOException          if an I/O error occurs
    */
   public long copyLarge(final OutputStream output,
-      final long inputOffset, final long length, final byte[] buffer)
+      final long inputOffset, final long len, final byte[] buffer)
       throws IOException {
     if (inputOffset > 0) {
       seek(inputOffset);
     }
 
-    if (length == 0) {
+    if (len == 0) {
       return 0;
     }
 
     final int bufferLength = buffer.length;
     int bytesToRead = bufferLength;
-    if (length > 0 && length < bufferLength) {
-      bytesToRead = (int) length;
+    if (len > 0 && len < bufferLength) {
+      bytesToRead = (int) len;
     }
 
     int read;
@@ -375,9 +375,9 @@ public class KeyInputStream extends InputStream implements Seekable {
 
       output.write(buffer, 0, read);
       totalRead += read;
-      if (length > 0) { // only adjust length if not reading to the end
+      if (len > 0) { // only adjust len if not reading to the end
         // Note the cast must work because buffer.length is an integer
-        bytesToRead = (int) Math.min(length - totalRead, bufferLength);
+        bytesToRead = (int) Math.min(len - totalRead, bufferLength);
       }
     }
 
