@@ -224,6 +224,7 @@ public class TestKeyInputStream {
 
   @Test
   public void testSeek() throws Exception {
+    XceiverClientManager.resetXceiverClientMetrics();
     XceiverClientMetrics metrics = XceiverClientManager
         .getXceiverClientMetrics();
     long writeChunkCount = metrics.getContainerOpCountMetrics(
