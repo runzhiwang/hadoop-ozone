@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.ozone.s3.io;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.fs.FSInputStream;
 import org.apache.hadoop.ozone.client.io.KeyInputStream;
 
