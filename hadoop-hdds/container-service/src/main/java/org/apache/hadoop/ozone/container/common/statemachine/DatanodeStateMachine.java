@@ -515,6 +515,7 @@ public class DatanodeStateMachine implements Closeable {
         Iterator<Map.Entry<Long, Queue<SCMCommand>>> iter =
             containerCommandMap.entrySet().iterator();
 
+        boolean executeCommand = false;
         while (iter.hasNext()) {
           Map.Entry<Long, Queue<SCMCommand>> entry = iter.next();
 
@@ -535,6 +536,7 @@ public class DatanodeStateMachine implements Closeable {
               if (command != null) {
                 commandDispatcher.handle(command);
                 commandsHandled++;
+                executeCommand = true;
               } else if (queue.isEmpty()) {
                 iter.remove();
               }
@@ -553,6 +555,11 @@ public class DatanodeStateMachine implements Closeable {
             }
           } catch (InterruptedException e) {
             // Ignore this exception.
+          }
+        } else if (!executeCommand) {
+          try {
+            Thread.sleep(50);
+          } catch (InterruptedException e) {
           }
         }
       }
