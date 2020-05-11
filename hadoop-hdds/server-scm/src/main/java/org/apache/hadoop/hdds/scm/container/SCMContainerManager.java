@@ -90,14 +90,15 @@ public class SCMContainerManager implements ContainerManager {
       final ConfigurationSource conf,
       Table<ContainerID, ContainerInfo> containerStore,
       BatchOperationHandler batchHandler,
-      PipelineManager pipelineManager)
+      PipelineManager pipelineManager,
+      ContainerStateManager containerStateManager)
       throws IOException {
 
     this.batchHandler = batchHandler;
     this.containerStore = containerStore;
     this.lock = new ReentrantLock();
     this.pipelineManager = pipelineManager;
-    this.containerStateManager = new ContainerStateManager(conf);
+    this.containerStateManager = containerStateManager;
     this.numContainerPerOwnerInPipeline = conf
         .getInt(ScmConfigKeys.OZONE_SCM_PIPELINE_OWNER_CONTAINER_COUNT,
             ScmConfigKeys.OZONE_SCM_PIPELINE_OWNER_CONTAINER_COUNT_DEFAULT);

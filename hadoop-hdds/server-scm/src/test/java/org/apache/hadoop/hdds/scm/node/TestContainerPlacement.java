@@ -33,6 +33,7 @@ import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.TestUtils;
 import org.apache.hadoop.hdds.scm.XceiverClientManager;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.SCMContainerManager;
 import org.apache.hadoop.hdds.scm.container.placement.algorithms.SCMContainerPlacementCapacity;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
@@ -114,12 +115,14 @@ public class TestContainerPlacement {
       NodeManager scmNodeManager) throws IOException {
     EventQueue eventQueue = new EventQueue();
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(config);
     PipelineManager pipelineManager =
-        new SCMPipelineManager(config, scmNodeManager,
+        new SCMPipelineManager(config, scmNodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     return new SCMContainerManager(config, scmMetadataStore.getContainerTable(),
         scmMetadataStore.getStore(),
-        pipelineManager);
+        pipelineManager, containerStateManager);
 
   }
 

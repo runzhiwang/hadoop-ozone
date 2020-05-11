@@ -56,6 +56,7 @@ import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerManager;
 import org.apache.hadoop.hdds.scm.container.ContainerReportHandler;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.IncrementalContainerReportHandler;
 import org.apache.hadoop.hdds.scm.container.ReplicationManager;
 import org.apache.hadoop.hdds.scm.container.ReplicationManager.ReplicationManagerConfiguration;
@@ -402,11 +403,14 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         ContainerPlacementPolicyFactory.getPolicy(conf, scmNodeManager,
             clusterMap, true, placementMetrics);
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
+
     if (configurator.getPipelineManager() != null) {
       pipelineManager = configurator.getPipelineManager();
     } else {
       pipelineManager =
-          new SCMPipelineManager(conf, scmNodeManager,
+          new SCMPipelineManager(conf, scmNodeManager, containerStateManager,
               scmMetadataStore.getPipelineTable(),
               eventQueue);
     }
@@ -418,7 +422,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           new SCMContainerManager(conf,
               scmMetadataStore.getContainerTable(),
               scmMetadataStore.getBatchHandler(),
-              pipelineManager);
+              pipelineManager,
+              containerStateManager);
     }
 
     if (configurator.getScmBlockManager() != null) {

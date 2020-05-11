@@ -24,10 +24,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -37,10 +40,13 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.container.ContainerInfo;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager.SafeModeStatus;
@@ -53,6 +59,7 @@ import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.util.Time;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.ratis.util.function.CheckedRunnable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,6 +81,7 @@ public class SCMPipelineManager implements PipelineManager {
 
   private final EventPublisher eventPublisher;
   private final NodeManager nodeManager;
+  private final ContainerStateManager containerStateManager;
   private final SCMPipelineMetrics metrics;
   private final ConfigurationSource conf;
   private long pipelineWaitDefaultTimeout;
@@ -87,12 +95,43 @@ public class SCMPipelineManager implements PipelineManager {
   // to prevent pipelines being created until sufficient nodes have registered.
   private final AtomicBoolean pipelineCreationAllowed;
 
+  static class PipelineContainerIDs {
+    private Pipeline pipeline;
+    private Set<ContainerID> containerIDS;
+    private boolean onTimeOut;
+
+    PipelineContainerIDs(
+        Pipeline pipeline, Set<ContainerID> containerIDS, boolean onTimeOut) {
+      this.pipeline = pipeline;
+      this.containerIDS = containerIDS;
+      this.onTimeOut = onTimeOut;
+    }
+
+    public Pipeline getPipeline() {
+      return pipeline;
+    }
+
+    public Set<ContainerID> getContainerIDS() {
+      return containerIDS;
+    }
+
+    public boolean getOnTimeOut() {
+      return onTimeOut;
+    }
+  }
+
+  private final ConcurrentHashMap<PipelineID, PipelineContainerIDs>
+      waitDestroyPipeline = new ConcurrentHashMap();
+  private Thread destroyPipelineThread;
+
   public SCMPipelineManager(ConfigurationSource conf,
       NodeManager nodeManager,
+      ContainerStateManager containerStateManager,
       Table<PipelineID, Pipeline> pipelineStore,
       EventPublisher eventPublisher)
       throws IOException {
-    this(conf, nodeManager, pipelineStore, eventPublisher, null, null);
+    this(conf, nodeManager, containerStateManager, pipelineStore,
+        eventPublisher, null, null);
     this.stateManager = new PipelineStateManager();
     this.pipelineFactory = new PipelineFactory(nodeManager,
         stateManager, conf, eventPublisher);
@@ -102,6 +141,7 @@ public class SCMPipelineManager implements PipelineManager {
 
   protected SCMPipelineManager(ConfigurationSource conf,
       NodeManager nodeManager,
+      ContainerStateManager containerStateManager,
       Table<PipelineID, Pipeline> pipelineStore,
       EventPublisher eventPublisher,
       PipelineStateManager pipelineStateManager,
@@ -118,6 +158,7 @@ public class SCMPipelineManager implements PipelineManager {
         new BackgroundPipelineCreator(this, scheduler, conf);
     this.eventPublisher = eventPublisher;
     this.nodeManager = nodeManager;
+    this.containerStateManager = containerStateManager;
     this.metrics = SCMPipelineMetrics.create();
     this.pmInfoBean = MBeans.register("SCMPipelineManager",
         "SCMPipelineManagerInfo", this);
@@ -131,6 +172,7 @@ public class SCMPipelineManager implements PipelineManager {
     // Pipeline creation is only allowed after the safemode prechecks have
     // passed, eg sufficient nodes have registered.
     this.pipelineCreationAllowed = new AtomicBoolean(!this.isInSafeMode.get());
+    initDestroyPipelineThread();
   }
 
   public PipelineStateManager getStateManager() {
@@ -250,6 +292,11 @@ public class SCMPipelineManager implements PipelineManager {
     } finally {
       lock.readLock().unlock();
     }
+  }
+
+  @Override
+  public boolean isPipelineWaitDestroy(PipelineID pipelineID) {
+    return waitDestroyPipeline.containsKey(pipelineID);
   }
 
   @Override
@@ -381,6 +428,82 @@ public class SCMPipelineManager implements PipelineManager {
     }
   }
 
+  private void initDestroyPipelineThread() {
+    Runnable destroyPipeline = () -> {
+      boolean loop = true;
+      while (loop) {
+        try {
+          Iterator<Map.Entry<PipelineID, PipelineContainerIDs>> iter =
+              waitDestroyPipeline.entrySet().iterator();
+          while (iter.hasNext()) {
+            Map.Entry<PipelineID, PipelineContainerIDs> entry = iter.next();
+            PipelineID pipelineID = entry.getKey();
+            PipelineContainerIDs containerIDs = entry.getValue();
+            try {
+              boolean canDestory = true;
+              for (ContainerID id : containerIDs.getContainerIDS()) {
+                ContainerInfo info = containerStateManager.getContainer(id);
+                if (info.getState() == HddsProtos.LifeCycleState.OPEN
+                    || info.getState() == HddsProtos.LifeCycleState.CLOSING) {
+                  canDestory = false;
+                  break;
+                }
+              }
+
+              if (!canDestory) {
+                continue;
+              }
+
+              if (containerIDs.getOnTimeOut()) {
+                long pipelineDestroyTimeoutInMillis =
+                    conf.getTimeDuration(
+                        ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT,
+                        ScmConfigKeys
+                            .OZONE_SCM_PIPELINE_DESTROY_TIMEOUT_DEFAULT,
+                        TimeUnit.MILLISECONDS);
+                scheduler.schedule(
+                    () -> destroyPipeline(containerIDs.getPipeline()),
+                    pipelineDestroyTimeoutInMillis, TimeUnit.MILLISECONDS, LOG,
+                    String.format("Destroy pipeline failed for pipeline:%s",
+                        containerIDs.getPipeline()));
+              } else {
+                destroyPipeline(containerIDs.getPipeline());
+              }
+
+              iter.remove();
+            } catch (Exception e) {
+              iter.remove();
+              LOG.error("fail to destory pipeline", e);
+            }
+          }
+
+          if (waitDestroyPipeline.isEmpty()) {
+            Thread.sleep(2000);
+          }
+        } catch (InterruptedException e) {
+          loop = false;
+          LOG.info("Interrupt destroy pipeline thread", e);
+        }
+      }
+    };
+
+    destroyPipelineThread = getDestroyPipelineThread(destroyPipeline);
+    destroyPipelineThread.start();
+  }
+
+  private Thread getDestroyPipelineThread(Runnable destroyPipeline) {
+    Thread handlerThread = new Thread(destroyPipeline);
+    handlerThread.setDaemon(true);
+    handlerThread.setName("Destroy pipeline thread");
+    handlerThread.setUncaughtExceptionHandler((Thread t, Throwable e) -> {
+      // Let us just restart this thread after logging a critical error.
+      LOG.error("Critical Error : Destroy pipeline thread encountered an " +
+          "error. Thread: {}", t.toString(), e);
+      getDestroyPipelineThread(destroyPipeline).start();
+    });
+    return handlerThread;
+  }
+
   /**
    * Finalizes pipeline in the SCM. Removes pipeline and makes rpc call to
    * destroy pipeline on the datanodes immediately or after timeout based on the
@@ -395,17 +518,36 @@ public class SCMPipelineManager implements PipelineManager {
   public void finalizeAndDestroyPipeline(Pipeline pipeline, boolean onTimeout)
       throws IOException {
     LOG.info("Destroying pipeline:{}", pipeline);
+
+    Set<ContainerID> containerIDs =
+        new HashSet<>(stateManager.getContainers(pipeline.getId()));
+    waitDestroyPipeline.putIfAbsent(
+        pipeline.getId(),
+        new PipelineContainerIDs(pipeline, containerIDs, onTimeout));
+
     finalizePipeline(pipeline.getId());
+    // remove the pipeline from the pipeline manager
+
+    // TODO: only for test to check scheduler != null
     if (onTimeout) {
       long pipelineDestroyTimeoutInMillis =
-          conf.getTimeDuration(ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT,
-              ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT_DEFAULT,
+          conf.getTimeDuration(
+              ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT,
+              ScmConfigKeys
+                  .OZONE_SCM_PIPELINE_DESTROY_TIMEOUT_DEFAULT,
               TimeUnit.MILLISECONDS);
-      scheduler.schedule(() -> destroyPipeline(pipeline),
+
+      CheckedRunnable runnable = () -> {
+        removePipeline(pipeline.getId());
+        triggerPipelineCreation();
+      };
+
+      scheduler.schedule(runnable,
           pipelineDestroyTimeoutInMillis, TimeUnit.MILLISECONDS, LOG,
-          String.format("Destroy pipeline failed for pipeline:%s", pipeline));
+          String.format("Remove pipeline failed for pipeline:%s", pipeline));
     } else {
-      destroyPipeline(pipeline);
+      removePipeline(pipeline.getId());
+      triggerPipelineCreation();
     }
   }
 
@@ -557,9 +699,6 @@ public class SCMPipelineManager implements PipelineManager {
    */
   protected void destroyPipeline(Pipeline pipeline) throws IOException {
     pipelineFactory.close(pipeline.getType(), pipeline);
-    // remove the pipeline from the pipeline manager
-    removePipeline(pipeline.getId());
-    triggerPipelineCreation();
   }
 
   /**
@@ -606,6 +745,10 @@ public class SCMPipelineManager implements PipelineManager {
 
     // shutdown pipeline provider.
     pipelineFactory.shutdown();
+
+    if (destroyPipelineThread != null) {
+      destroyPipelineThread.interrupt();
+    }
   }
 
   protected ReadWriteLock getLock() {

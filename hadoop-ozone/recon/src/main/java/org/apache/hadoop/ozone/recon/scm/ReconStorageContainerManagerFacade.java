@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.scm.container.CloseContainerEventHandler;
 import org.apache.hadoop.hdds.scm.container.ContainerActionsHandler;
 import org.apache.hadoop.hdds.scm.container.ContainerManager;
 import org.apache.hadoop.hdds.scm.container.ContainerReportHandler;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.IncrementalContainerReportHandler;
 import org.apache.hadoop.hdds.scm.container.ReplicationManager;
 import org.apache.hadoop.hdds.scm.container.placement.algorithms.ContainerPlacementPolicyFactory;
@@ -110,16 +111,20 @@ public class ReconStorageContainerManagerFacade
         clusterMap, true, placementMetrics);
     this.datanodeProtocolServer = new ReconDatanodeProtocolServer(
         conf, this, eventQueue);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     this.pipelineManager =
 
         new ReconPipelineManager(conf,
             nodeManager,
+            containerStateManager,
             ReconDBDefinition.PIPELINES.getTable(dbStore),
             eventQueue);
     this.containerManager = new ReconContainerManager(conf,
         ReconDBDefinition.CONTAINERS.getTable(dbStore),
         dbStore,
         pipelineManager,
+        containerStateManager,
         scmServiceProvider,
         containerSchemaManager);
     this.scmServiceProvider = scmServiceProvider;

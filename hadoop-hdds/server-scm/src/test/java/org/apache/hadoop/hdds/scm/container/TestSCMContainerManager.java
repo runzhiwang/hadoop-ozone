@@ -92,14 +92,17 @@ public class TestSCMContainerManager {
     }
     nodeManager = new MockNodeManager(true, 10);
     SCMMetadataStore scmMetadataStore = new SCMMetadataStoreImpl(conf);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), new EventQueue());
     pipelineManager.allowPipelineCreation();
     containerManager = new SCMContainerManager(conf,
         scmMetadataStore.getContainerTable(),
         scmMetadataStore.getStore(),
-        pipelineManager);
+        pipelineManager,
+        containerStateManager);
     xceiverClientManager = new XceiverClientManager(conf);
     replicationFactor = SCMTestUtils.getReplicationFactor(conf);
     replicationType = SCMTestUtils.getReplicationType(conf);

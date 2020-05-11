@@ -36,6 +36,7 @@ import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.TestUtils;
 import org.apache.hadoop.hdds.scm.container.CloseContainerEventHandler;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.container.SCMContainerManager;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
@@ -112,8 +113,11 @@ public class TestBlockManager {
 
     scmMetadataStore = new SCMMetadataStoreImpl(conf);
     scmMetadataStore.start(conf);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     pipelineManager =
         new SCMPipelineManager(conf, nodeManager,
+            containerStateManager,
             scmMetadataStore.getPipelineTable(),
             eventQueue);
     pipelineManager.allowPipelineCreation();
@@ -127,7 +131,7 @@ public class TestBlockManager {
         new SCMContainerManager(conf,
             scmMetadataStore.getContainerTable(),
             scmMetadataStore.getStore(),
-            pipelineManager);
+            pipelineManager, containerStateManager);
     SCMSafeModeManager safeModeManager = new SCMSafeModeManager(conf,
         containerManager.getContainers(), pipelineManager, eventQueue) {
       @Override

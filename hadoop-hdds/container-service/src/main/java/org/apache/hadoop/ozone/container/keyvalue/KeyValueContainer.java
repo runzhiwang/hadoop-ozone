@@ -581,6 +581,11 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
     return this.lock.writeLock().isHeldByCurrentThread();
   }
 
+  @Override
+  public boolean tryWriteLock() {
+    return lock.writeLock().tryLock();
+  }
+
   /**
    * Acquire read lock, unless interrupted while waiting.
    * @throws InterruptedException

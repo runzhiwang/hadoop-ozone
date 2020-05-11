@@ -45,6 +45,8 @@ public interface PipelineManager extends Closeable, PipelineManagerMXBean,
 
   Pipeline getPipeline(PipelineID pipelineID) throws PipelineNotFoundException;
 
+  boolean isPipelineWaitDestroy(PipelineID pipelineID);
+
   boolean containsPipeline(PipelineID pipelineID);
 
   List<Pipeline> getPipelines();

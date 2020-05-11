@@ -96,11 +96,13 @@ public class PipelineReportHandler implements
     try {
       pipeline = pipelineManager.getPipeline(pipelineID);
     } catch (PipelineNotFoundException e) {
-      final ClosePipelineCommand closeCommand =
-          new ClosePipelineCommand(pipelineID);
-      final CommandForDatanode datanodeCommand =
-          new CommandForDatanode<>(dn.getUuid(), closeCommand);
-      publisher.fireEvent(SCMEvents.DATANODE_COMMAND, datanodeCommand);
+      if (!pipelineManager.isPipelineWaitDestroy(pipelineID)) {
+        final ClosePipelineCommand closeCommand =
+            new ClosePipelineCommand(pipelineID);
+        final CommandForDatanode datanodeCommand =
+            new CommandForDatanode<>(dn.getUuid(), closeCommand);
+        publisher.fireEvent(SCMEvents.DATANODE_COMMAND, datanodeCommand);
+      }
       return;
     }
 

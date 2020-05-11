@@ -35,6 +35,7 @@ import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.TestUtils;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
@@ -92,9 +93,12 @@ public class TestSCMPipelineManager {
 
   @Test
   public void testPipelineReload() throws IOException {
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     SCMPipelineManager pipelineManager =
         new SCMPipelineManager(conf,
             nodeManager,
+            containerStateManager,
             scmMetadataStore.getPipelineTable(),
             new EventQueue());
     pipelineManager.allowPipelineCreation();
@@ -116,7 +120,7 @@ public class TestSCMPipelineManager {
 
     // new pipeline manager should be able to load the pipelines from the db
     pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), new EventQueue());
     pipelineManager.allowPipelineCreation();
     mockRatisProvider =
@@ -147,8 +151,10 @@ public class TestSCMPipelineManager {
 
   @Test
   public void testRemovePipeline() throws IOException {
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), new EventQueue());
     pipelineManager.allowPipelineCreation();
     PipelineProvider mockRatisProvider =
@@ -168,7 +174,7 @@ public class TestSCMPipelineManager {
 
     // new pipeline manager should not be able to load removed pipelines
     pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), new EventQueue());
     try {
       pipelineManager.getPipeline(pipeline.getId());
@@ -184,8 +190,10 @@ public class TestSCMPipelineManager {
   @Test
   public void testPipelineReport() throws IOException {
     EventQueue eventQueue = new EventQueue();
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     pipelineManager.allowPipelineCreation();
     PipelineProvider mockRatisProvider =
@@ -251,8 +259,10 @@ public class TestSCMPipelineManager {
   public void testPipelineCreationFailedMetric() throws Exception {
     MockNodeManager nodeManagerMock = new MockNodeManager(true,
         20);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManagerMock,
+        new SCMPipelineManager(conf, nodeManagerMock, containerStateManager,
             scmMetadataStore.getPipelineTable(), new EventQueue());
     pipelineManager.allowPipelineCreation();
     PipelineProvider mockRatisProvider =
@@ -311,8 +321,10 @@ public class TestSCMPipelineManager {
 
   @Test
   public void testActivateDeactivatePipeline() throws IOException {
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     final SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), new EventQueue());
     pipelineManager.allowPipelineCreation();
     final PipelineProvider mockRatisProvider =
@@ -360,8 +372,10 @@ public class TestSCMPipelineManager {
   @Test
   public void testPipelineOpenOnlyWhenLeaderReported() throws Exception {
     EventQueue eventQueue = new EventQueue();
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     pipelineManager.allowPipelineCreation();
     PipelineProvider mockRatisProvider =
@@ -378,7 +392,7 @@ public class TestSCMPipelineManager {
     pipelineManager.close();
     // new pipeline manager loads the pipelines from the db in ALLOCATED state
     pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     mockRatisProvider =
         new MockRatisPipelineProvider(nodeManager,
@@ -422,9 +436,12 @@ public class TestSCMPipelineManager {
         OZONE_SCM_PIPELINE_ALLOCATED_TIMEOUT, -1,
         TimeUnit.MILLISECONDS);
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
+
     EventQueue eventQueue = new EventQueue();
     final SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     pipelineManager.allowPipelineCreation();
     final PipelineProvider ratisProvider = new MockRatisPipelineProvider(
@@ -465,10 +482,11 @@ public class TestSCMPipelineManager {
     conf.setTimeDuration(
         OZONE_SCM_PIPELINE_ALLOCATED_TIMEOUT, -1,
         TimeUnit.MILLISECONDS);
-
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     EventQueue eventQueue = new EventQueue();
     SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     final PipelineProvider ratisProvider = new MockRatisPipelineProvider(
         nodeManager, pipelineManager.getStateManager(), conf, eventQueue,
@@ -512,9 +530,11 @@ public class TestSCMPipelineManager {
         OZONE_SCM_PIPELINE_ALLOCATED_TIMEOUT, -1,
         TimeUnit.MILLISECONDS);
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     EventQueue eventQueue = new EventQueue();
     SCMPipelineManager pipelineManager =
-        new SCMPipelineManager(conf, nodeManager,
+        new SCMPipelineManager(conf, nodeManager, containerStateManager,
             scmMetadataStore.getPipelineTable(), eventQueue);
     final PipelineProvider ratisProvider = new MockRatisPipelineProvider(
         nodeManager, pipelineManager.getStateManager(), conf, eventQueue,

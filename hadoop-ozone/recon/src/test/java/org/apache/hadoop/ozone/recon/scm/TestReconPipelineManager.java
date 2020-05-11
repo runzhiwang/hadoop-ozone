@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.net.NetworkTopologyImpl;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
@@ -111,9 +112,10 @@ public class TestReconPipelineManager {
     EventQueue eventQueue = new EventQueue();
     NodeManager nodeManager =
         new SCMNodeManager(conf, scmStorageConfig, eventQueue, clusterMap);
-
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     try (ReconPipelineManager reconPipelineManager =
-        new ReconPipelineManager(conf, nodeManager,
+        new ReconPipelineManager(conf, nodeManager, containerStateManager,
             ReconDBDefinition.PIPELINES.getTable(store), eventQueue)) {
       reconPipelineManager.addPipeline(validPipeline);
       reconPipelineManager.addPipeline(invalidPipeline);
@@ -148,8 +150,10 @@ public class TestReconPipelineManager {
     NodeManager nodeManager =
         new SCMNodeManager(conf, scmStorageConfig, eventQueue, clusterMap);
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     ReconPipelineManager reconPipelineManager =
-        new ReconPipelineManager(conf, nodeManager,
+        new ReconPipelineManager(conf, nodeManager, containerStateManager,
             ReconDBDefinition.PIPELINES.getTable(store), eventQueue);
     assertFalse(reconPipelineManager.containsPipeline(pipeline.getId()));
     reconPipelineManager.addPipeline(pipeline);
@@ -160,9 +164,11 @@ public class TestReconPipelineManager {
   public void testStubbedReconPipelineFactory() throws IOException {
 
     NodeManager nodeManagerMock = mock(NodeManager.class);
-
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     ReconPipelineManager reconPipelineManager = new ReconPipelineManager(
-        conf, nodeManagerMock, ReconDBDefinition.PIPELINES.getTable(store),
+        conf, nodeManagerMock, containerStateManager,
+        ReconDBDefinition.PIPELINES.getTable(store),
         new EventQueue());
     PipelineFactory pipelineFactory = reconPipelineManager.getPipelineFactory();
     assertTrue(pipelineFactory instanceof ReconPipelineFactory);

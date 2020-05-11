@@ -29,6 +29,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
@@ -70,8 +71,11 @@ public class TestHealthyPipelineSafeModeRule {
     SCMMetadataStore scmMetadataStore = new SCMMetadataStoreImpl(config);
 
     try {
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(config);
       SCMPipelineManager pipelineManager = new SCMPipelineManager(config,
-          nodeManager, scmMetadataStore.getPipelineTable(), eventQueue);
+          nodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), eventQueue);
       PipelineProvider mockRatisProvider =
           new MockRatisPipelineProvider(nodeManager,
               pipelineManager.getStateManager(), config);
@@ -114,8 +118,11 @@ public class TestHealthyPipelineSafeModeRule {
 
     SCMMetadataStore scmMetadataStore = new SCMMetadataStoreImpl(config);
     try {
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(config);
       SCMPipelineManager pipelineManager = new SCMPipelineManager(config,
-          nodeManager, scmMetadataStore.getPipelineTable(), eventQueue);
+          nodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), eventQueue);
       pipelineManager.allowPipelineCreation();
 
       PipelineProvider mockRatisProvider =
@@ -190,8 +197,11 @@ public class TestHealthyPipelineSafeModeRule {
 
     SCMMetadataStore scmMetadataStore = new SCMMetadataStoreImpl(config);
     try {
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(config);
       SCMPipelineManager pipelineManager = new SCMPipelineManager(config,
-          nodeManager, scmMetadataStore.getPipelineTable(), eventQueue);
+          nodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), eventQueue);
 
       pipelineManager.allowPipelineCreation();
       PipelineProvider mockRatisProvider =

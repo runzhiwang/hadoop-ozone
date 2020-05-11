@@ -63,7 +63,7 @@ public class ClosePipelineCommandHandler implements CommandHandler {
    * @param connectionManager - The SCMs that we are talking to.
    */
   @Override
-  public void handle(SCMCommand command, OzoneContainer ozoneContainer,
+  public HandleResult handle(SCMCommand command, OzoneContainer ozoneContainer,
       StateContext context, SCMConnectionManager connectionManager) {
     invocationCount.incrementAndGet();
     final long startTime = Time.monotonicNow();
@@ -71,18 +71,20 @@ public class ClosePipelineCommandHandler implements CommandHandler {
     final ClosePipelineCommandProto closeCommand =
         ((ClosePipelineCommand)command).getProto();
     final HddsProtos.PipelineID pipelineID = closeCommand.getPipelineID();
-
+    HandleResult handleResult = HandleResult.FAIL;
     try {
       XceiverServerSpi server = ozoneContainer.getWriteChannel();
       server.removeGroup(pipelineID);
       LOG.info("Close Pipeline #{} command on datanode #{}.", pipelineID,
           dn.getUuidString());
+      handleResult = HandleResult.SUCC;
     } catch (IOException e) {
       LOG.error("Can't close pipeline #{}", pipelineID, e);
     } finally {
       long endTime = Time.monotonicNow();
       totalTime += endTime - startTime;
     }
+    return handleResult;
   }
 
   /**

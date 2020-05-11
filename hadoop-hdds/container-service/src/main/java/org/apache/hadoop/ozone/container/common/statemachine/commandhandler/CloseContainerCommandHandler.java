@@ -67,7 +67,7 @@ public class CloseContainerCommandHandler implements CommandHandler {
    * @param connectionManager - The SCMs that we are talking to.
    */
   @Override
-  public void handle(SCMCommand command, OzoneContainer ozoneContainer,
+  public HandleResult handle(SCMCommand command, OzoneContainer ozoneContainer,
       StateContext context, SCMConnectionManager connectionManager) {
     LOG.debug("Processing Close Container command.");
     invocationCount.incrementAndGet();
@@ -78,17 +78,26 @@ public class CloseContainerCommandHandler implements CommandHandler {
         ((CloseContainerCommand)command).getProto();
     final ContainerController controller = ozoneContainer.getController();
     final long containerId = closeCommand.getContainerID();
+    HandleResult handleResult = HandleResult.FAIL;
     try {
       final Container container = controller.getContainer(containerId);
 
       if (container == null) {
         LOG.error("Container #{} does not exist in datanode. "
             + "Container close failed.", containerId);
-        return;
+        return HandleResult.FAIL;
       }
 
       // move the container to CLOSING if in OPEN state
-      controller.markContainerForClose(containerId);
+      if (container.tryWriteLock()) {
+        try {
+          controller.markContainerForClose(containerId);
+        } finally {
+          container.writeUnlock();
+        }
+      } else {
+        return HandleResult.LOCK_FAIL;
+      }
 
       switch (container.getContainerState()) {
       case OPEN:
@@ -101,17 +110,36 @@ public class CloseContainerCommandHandler implements CommandHandler {
                   closeCommand.getContainerID());
           ozoneContainer.getWriteChannel()
               .submitRequest(request, closeCommand.getPipelineID());
+          handleResult = HandleResult.SUCC;
         } else {
           // Container should not exist in CLOSING state without a pipeline
-          controller.markContainerUnhealthy(containerId);
+          if (container.tryWriteLock()) {
+            try {
+              controller.markContainerUnhealthy(containerId);
+            } finally {
+              container.writeUnlock();
+            }
+          } else {
+            return HandleResult.LOCK_FAIL;
+          }
         }
         break;
       case QUASI_CLOSED:
         if (closeCommand.getForce()) {
-          controller.closeContainer(containerId);
+          if (container.tryWriteLock()) {
+            try {
+              controller.closeContainer(containerId);
+            } finally {
+              container.writeUnlock();
+            }
+          } else {
+            return HandleResult.LOCK_FAIL;
+          }
+          handleResult = HandleResult.SUCC;
         }
         break;
       case CLOSED:
+        handleResult = HandleResult.SUCC;
         break;
       case UNHEALTHY:
       case INVALID:
@@ -131,6 +159,7 @@ public class CloseContainerCommandHandler implements CommandHandler {
       long endTime = Time.monotonicNow();
       totalTime += endTime - startTime;
     }
+    return handleResult;
   }
 
   private ContainerCommandRequestProto getContainerCommandRequestProto(

@@ -39,6 +39,7 @@ import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
 import org.apache.hadoop.ozone.container.ozoneimpl.OzoneContainer;
 import org.apache.hadoop.test.GenericTestUtils;
+import org.apache.hadoop.test.LambdaTestUtils;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.junit.After;
 import org.junit.Assert;
@@ -117,7 +118,7 @@ public class TestPipelineClose {
   }
 
   @Test
-  public void testPipelineCloseWithClosedContainer() throws IOException {
+  public void testPipelineCloseWithClosedContainer() throws Exception {
     Set<ContainerID> set = pipelineManager
         .getContainersInPipeline(ratisContainer.getPipeline().getId());
 
@@ -140,8 +141,9 @@ public class TestPipelineClose {
         .finalizeAndDestroyPipeline(ratisContainer.getPipeline(), false);
     for (DatanodeDetails dn : ratisContainer.getPipeline().getNodes()) {
       // Assert that the pipeline has been removed from Node2PipelineMap as well
-      Assert.assertFalse(scm.getScmNodeManager().getPipelines(dn)
-          .contains(ratisContainer.getPipeline().getId()));
+      LambdaTestUtils.await(6000, 1000, () ->
+          (!scm.getScmNodeManager().getPipelines(dn)
+              .contains(ratisContainer.getPipeline().getId())));
     }
   }
 
@@ -167,6 +169,12 @@ public class TestPipelineClose {
 
   @Test
   public void testPipelineCloseWithPipelineAction() throws Exception {
+    ContainerID cId = ratisContainer.getContainerInfo().containerID();
+    containerManager
+        .updateContainerState(cId, HddsProtos.LifeCycleEvent.FINALIZE);
+    containerManager
+        .updateContainerState(cId, HddsProtos.LifeCycleEvent.CLOSE);
+
     List<DatanodeDetails> dns = ratisContainer.getPipeline().getNodes();
     PipelineActionsFromDatanode
         pipelineActionsFromDatanode = TestUtils

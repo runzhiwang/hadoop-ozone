@@ -26,6 +26,7 @@ import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerNotFoundException;
 import org.apache.hadoop.hdds.scm.container.ContainerReplica;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.SCMContainerManager;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
@@ -62,9 +63,11 @@ public class ReconContainerManager extends SCMContainerManager {
       Table<ContainerID, ContainerInfo> containerStore,
       BatchOperationHandler batchHandler,
       PipelineManager pipelineManager,
+      ContainerStateManager containerStateManager,
       StorageContainerServiceProvider scm,
       ContainerSchemaManager containerSchemaManager) throws IOException {
-    super(conf, containerStore, batchHandler, pipelineManager);
+    super(conf, containerStore, batchHandler, pipelineManager,
+        containerStateManager);
     this.scmClient = scm;
     this.containerSchemaManager = containerSchemaManager;
   }
