@@ -18,11 +18,15 @@ package org.apache.hadoop.ozone.container.common.statemachine;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.Iterator;
+import java.util.Queue;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -33,6 +37,8 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient;
 import org.apache.hadoop.hdds.utils.LegacyHadoopConfigurationSource;
 import org.apache.hadoop.ozone.HddsDatanodeStopService;
+import org.apache.hadoop.ozone.OzoneConfigKeys;
+import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.report.ReportManager;
 import org.apache.hadoop.ozone.container.common.statemachine.commandhandler.CloseContainerCommandHandler;
 import org.apache.hadoop.ozone.container.common.statemachine.commandhandler.ClosePipelineCommandHandler;
@@ -65,6 +71,7 @@ public class DatanodeStateMachine implements Closeable {
   static final Logger LOG =
       LoggerFactory.getLogger(DatanodeStateMachine.class);
   private final ExecutorService executorService;
+  private ExecutorService containerCommandThreadPool;
   private final ConfigurationSource conf;
   private final SCMConnectionManager connectionManager;
   private StateContext context;
@@ -193,6 +200,7 @@ public class DatanodeStateMachine implements Closeable {
 
     reportManager.init();
     initCommandHandlerThread(conf);
+    initContainerCommandHandlerThreadPool();
 
     // Start jvm monitor
     jvmPauseMonitor = new JvmPauseMonitor();
@@ -282,6 +290,10 @@ public class DatanodeStateMachine implements Closeable {
       LOG.error("Error attempting to shutdown.", e);
       executorService.shutdownNow();
       Thread.currentThread().interrupt();
+    }
+
+    if (containerCommandThreadPool != null) {
+      containerCommandThreadPool.shutdown();
     }
 
     if (connectionManager != null) {
@@ -477,6 +489,71 @@ public class DatanodeStateMachine implements Closeable {
     // We will have only one thread for command processing in a datanode.
     cmdProcessThread = getCommandHandlerThread(processCommandQueue);
     cmdProcessThread.start();
+  }
+
+
+  private void initContainerCommandHandlerThreadPool() {
+    int containerCommandThreadPoolSize = conf.getInt(
+        OzoneConfigKeys.DFS_CONTAINER_COMMAND_THREADS_KEY,
+        OzoneConfigKeys.DFS_CONTAINER_COMMAND_THREADS_DEFAULT);
+
+    containerCommandThreadPool =
+        Executors.newFixedThreadPool(containerCommandThreadPoolSize);
+
+    Runnable runnable = getContainerCommandHandlerRunnable();
+    for (int i = 0; i < containerCommandThreadPoolSize; i++) {
+      containerCommandThreadPool.execute(runnable);
+    }
+  }
+
+  private Runnable getContainerCommandHandlerRunnable() {
+    return () -> {
+      while (getContext().getState() != DatanodeStates.SHUTDOWN) {
+        Map<Long, Queue<SCMCommand>> containerCommandMap =
+            getContext().getContainerCommandMap();
+        Iterator<Map.Entry<Long, Queue<SCMCommand>>> iter =
+            containerCommandMap.entrySet().iterator();
+
+        boolean hasCommand = false;
+        while (iter.hasNext()) {
+          Map.Entry<Long, Queue<SCMCommand>> entry = iter.next();
+
+          long containerID = entry.getKey();
+          Container cont = container.getContainerSet()
+              .getContainer(containerID);
+          if (cont == null) {
+            LOG.warn("Container:{} does not exist", containerID);
+            iter.remove();
+            continue;
+          }
+
+          Queue<SCMCommand> queue = entry.getValue();
+          // all the container related command were to write
+          if (cont.tryWriteLock()) {
+            try {
+              SCMCommand command = queue.poll();
+              if (command != null) {
+                commandDispatcher.handle(command);
+                commandsHandled++;
+                hasCommand = true;
+              } else if (queue.isEmpty()) {
+                iter.remove();
+              }
+            } finally {
+              cont.writeUnlock();
+            }
+          }
+        }
+
+        if (!hasCommand) {
+          try {
+            Thread.sleep(2000);
+          } catch (InterruptedException e) {
+            // Ignore this exception.
+          }
+        }
+      }
+    };
   }
 
   private Thread getCommandHandlerThread(Runnable processCommandQueue) {

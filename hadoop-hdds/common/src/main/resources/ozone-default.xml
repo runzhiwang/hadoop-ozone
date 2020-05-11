@@ -206,6 +206,14 @@
     </description>
   </property>
   <property>
+    <name>dfs.container.command.threads</name>
+    <value>8</value>
+    <tag>OZONE, RATIS, PERFORMANCE</tag>
+    <description>Maximum number of threads in the thread pool that Datanode
+      will use for process container related command.
+    </description>
+  </property>
+  <property>
     <name>dfs.container.ratis.leader.pending.bytes.limit</name>
     <value>1GB</value>
     <tag>OZONE, RATIS, PERFORMANCE</tag>

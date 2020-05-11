@@ -17,6 +17,7 @@
 package org.apache.hadoop.ozone.container.common.statemachine;
 
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -45,12 +47,17 @@ import org.apache.hadoop.ozone.container.common.states.datanode.InitDatanodeStat
 import org.apache.hadoop.ozone.container.common.states.datanode.RunningDatanodeState;
 import org.apache.hadoop.ozone.protocol.commands.CommandStatus;
 import org.apache.hadoop.ozone.protocol.commands.DeleteBlockCommandStatus.DeleteBlockCommandStatusBuilder;
+import org.apache.hadoop.ozone.protocol.commands.CloseContainerCommand;
+import org.apache.hadoop.ozone.protocol.commands.DeleteBlocksCommand;
+import org.apache.hadoop.ozone.protocol.commands.DeleteContainerCommand;
+import org.apache.hadoop.ozone.protocol.commands.ReplicateContainerCommand;
 import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.GeneratedMessage;
 import static java.lang.Math.min;
 import org.apache.commons.collections.CollectionUtils;
+
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getScmHeartbeatInterval;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +69,7 @@ public class StateContext {
   static final Logger LOG =
       LoggerFactory.getLogger(StateContext.class);
   private final Queue<SCMCommand> commandQueue;
+  private final Map<Long, Queue<SCMCommand>> containerCommandMap;
   private final Map<Long, CommandStatus> cmdStatusMap;
   private final Lock lock;
   private final DatanodeStateMachine parent;
@@ -96,6 +104,7 @@ public class StateContext {
     this.state = state;
     this.parent = parent;
     commandQueue = new LinkedList<>();
+    containerCommandMap = new ConcurrentHashMap<>();
     cmdStatusMap = new ConcurrentHashMap<>();
     reports = new HashMap<>();
     endpoints = new HashSet<>();
@@ -446,6 +455,68 @@ public class StateContext {
     }
   }
 
+  public Map<Long, Queue<SCMCommand>> getContainerCommandMap() {
+    return containerCommandMap;
+  }
+
+  private void addContainerCommandMap(long containerID, SCMCommand command) {
+    if (containerID == -1) {
+      LOG.error("Error containerID:{} of SCMCommand:{}", containerID, command);
+      return;
+    }
+
+    if (!containerCommandMap.containsKey(containerID)) {
+      containerCommandMap.put(containerID, new ConcurrentLinkedQueue());
+    }
+    containerCommandMap.get(containerID).add(command);
+  }
+
+  private void addDeleteBlockCommand(SCMCommand command) {
+    DeleteBlocksCommand cmd = (DeleteBlocksCommand) command;
+    cmd.blocksTobeDeleted().forEach(entry -> {
+      long containerId = entry.getContainerID();
+      addContainerCommandMap(containerId,
+          new DeleteBlocksCommand(Arrays.asList(entry)));
+    });
+  }
+
+  private void addContainerCommand(SCMCommand command) {
+    SCMCommandProto.Type type = command.getType();
+    long containerID = -1;
+
+    switch (type) {
+    case closeContainerCommand:
+      containerID = ((CloseContainerCommand) command).getContainerID();
+      break;
+    case deleteContainerCommand:
+      containerID = ((DeleteContainerCommand) command).getContainerID();
+      break;
+    case replicateContainerCommand:
+      containerID = ((ReplicateContainerCommand) command).getContainerID();
+      break;
+    case deleteBlocksCommand:
+      addDeleteBlockCommand(command);
+      return;
+    default:
+      return;
+    }
+
+    addContainerCommandMap(containerID, command);
+  }
+
+  private boolean isContainerCommand(SCMCommand command) {
+    SCMCommandProto.Type type = command.getType();
+    switch (type) {
+    case deleteBlocksCommand:
+    case closeContainerCommand:
+    case deleteContainerCommand:
+    case replicateContainerCommand:
+      return true;
+    default:
+      return false;
+    }
+  }
+
   /**
    * Adds a command to the State Machine queue.
    *
@@ -454,7 +525,11 @@ public class StateContext {
   public void addCommand(SCMCommand command) {
     lock.lock();
     try {
-      commandQueue.add(command);
+      if (isContainerCommand(command)) {
+        addContainerCommand(command);
+      } else {
+        commandQueue.add(command);
+      }
     } finally {
       lock.unlock();
     }
