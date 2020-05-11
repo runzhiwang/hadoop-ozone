@@ -547,7 +547,7 @@ public class DatanodeStateMachine implements Closeable {
 
         if (!hasCommand) {
           try {
-            Thread.sleep(2000);
+            Thread.sleep(100);
           } catch (InterruptedException e) {
             // Ignore this exception.
           }
