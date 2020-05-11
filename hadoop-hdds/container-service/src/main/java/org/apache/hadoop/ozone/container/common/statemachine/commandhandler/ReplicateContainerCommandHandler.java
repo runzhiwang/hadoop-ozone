@@ -58,7 +58,7 @@ public class ReplicateContainerCommandHandler implements CommandHandler {
   }
 
   @Override
-  public void handle(SCMCommand command, OzoneContainer container,
+  public HandleResult handle(SCMCommand command, OzoneContainer container,
       StateContext context, SCMConnectionManager connectionManager) {
 
     final ReplicateContainerCommand replicateCommand =
@@ -72,6 +72,7 @@ public class ReplicateContainerCommandHandler implements CommandHandler {
             + "without source datanodes.", containerID);
 
     supervisor.addTask(new ReplicationTask(containerID, sourceDatanodes));
+    return HandleResult.SUCC;
   }
 
   @Override

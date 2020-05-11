@@ -45,6 +45,10 @@ import org.apache.hadoop.ozone.container.common.states.datanode.InitDatanodeStat
 import org.apache.hadoop.ozone.container.common.states.datanode.RunningDatanodeState;
 import org.apache.hadoop.ozone.protocol.commands.CommandStatus;
 import org.apache.hadoop.ozone.protocol.commands.DeleteBlockCommandStatus.DeleteBlockCommandStatusBuilder;
+import org.apache.hadoop.ozone.protocol.commands.CloseContainerCommand;
+import org.apache.hadoop.ozone.protocol.commands.DeleteBlocksCommand;
+import org.apache.hadoop.ozone.protocol.commands.DeleteContainerCommand;
+import org.apache.hadoop.ozone.protocol.commands.ReplicateContainerCommand;
 import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
 
 import com.google.common.base.Preconditions;
@@ -52,6 +56,8 @@ import com.google.protobuf.GeneratedMessage;
 import static java.lang.Math.min;
 import org.apache.commons.collections.CollectionUtils;
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getScmHeartbeatInterval;
+
+import org.apache.hadoop.util.ExitUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +68,7 @@ public class StateContext {
   static final Logger LOG =
       LoggerFactory.getLogger(StateContext.class);
   private final Queue<SCMCommand> commandQueue;
+  private final Map<Long, CommandQueueWithLock<SCMCommand>> containerCommandMap;
   private final Map<Long, CommandStatus> cmdStatusMap;
   private final Lock lock;
   private final DatanodeStateMachine parent;
@@ -96,6 +103,7 @@ public class StateContext {
     this.state = state;
     this.parent = parent;
     commandQueue = new LinkedList<>();
+    containerCommandMap = new ConcurrentHashMap<>();
     cmdStatusMap = new ConcurrentHashMap<>();
     reports = new HashMap<>();
     endpoints = new HashSet<>();
@@ -453,6 +461,55 @@ public class StateContext {
     }
   }
 
+  public Map<Long, CommandQueueWithLock<SCMCommand>> getContainerCommandMap() {
+    return containerCommandMap;
+  }
+
+  private void addContainerCommandMap(long containerID, SCMCommand command) {
+    if (containerID == -1) {
+      LOG.error("Error containerID:{} of SCMCommand:{}", containerID, command);
+      return;
+    }
+
+    if (!containerCommandMap.containsKey(containerID)) {
+      containerCommandMap.put(containerID,
+          new CommandQueueWithLock<>());
+    }
+    containerCommandMap.get(containerID).add(command);
+  }
+
+  private void addCommandByType(SCMCommand command) {
+    SCMCommandProto.Type type = command.getType();
+    long containerID = -1;
+
+    switch (type) {
+    case closeContainerCommand:
+      containerID = ((CloseContainerCommand) command).getContainerID();
+      break;
+    case deleteContainerCommand:
+      containerID = ((DeleteContainerCommand) command).getContainerID();
+      break;
+    case replicateContainerCommand:
+      containerID = ((ReplicateContainerCommand) command).getContainerID();
+      break;
+    case deleteBlocksCommand:
+      DeleteBlocksCommand cmd = (DeleteBlocksCommand) command;
+      if (cmd.blocksTobeDeleted().size() > 1) {
+        String errMsg = "blocksTobeDeleted size:" +
+            cmd.blocksTobeDeleted().size() + " should not greater than 1";
+        LOG.error(errMsg);
+        ExitUtil.terminate(1, new IllegalStateException(errMsg));
+      }
+      containerID = cmd.blocksTobeDeleted().get(0).getContainerID();
+      break;
+    default:
+      commandQueue.add(command);
+      return;
+    }
+
+    addContainerCommandMap(containerID, command);
+  }
+
   /**
    * Adds a command to the State Machine queue.
    *
@@ -461,7 +518,7 @@ public class StateContext {
   public void addCommand(SCMCommand command) {
     lock.lock();
     try {
-      commandQueue.add(command);
+      addCommandByType(command);
     } finally {
       lock.unlock();
     }

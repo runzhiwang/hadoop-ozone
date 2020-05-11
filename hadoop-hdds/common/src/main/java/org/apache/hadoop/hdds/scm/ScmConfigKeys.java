@@ -48,6 +48,10 @@ public final class ScmConfigKeys {
       = "dfs.container.ratis.num.write.chunk.threads";
   public static final int DFS_CONTAINER_RATIS_NUM_WRITE_CHUNK_THREADS_DEFAULT
       = 10;
+  public static final String DFS_CONTAINER_COMMAND_THREADS_KEY
+      = "dfs.container.command.threads";
+  public static final int DFS_CONTAINER_COMMAND_THREADS_DEFAULT
+      = 4;
   public static final String DFS_CONTAINER_RATIS_REPLICATION_LEVEL_KEY
       = "dfs.container.ratis.replication.level";
   public static final ReplicationLevel

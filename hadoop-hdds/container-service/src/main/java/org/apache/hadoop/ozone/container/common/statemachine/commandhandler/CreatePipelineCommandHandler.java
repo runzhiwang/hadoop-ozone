@@ -73,7 +73,7 @@ public class CreatePipelineCommandHandler implements CommandHandler {
    * @param connectionManager - The SCMs that we are talking to.
    */
   @Override
-  public void handle(SCMCommand command, OzoneContainer ozoneContainer,
+  public HandleResult handle(SCMCommand command, OzoneContainer ozoneContainer,
       StateContext context, SCMConnectionManager connectionManager) {
     invocationCount.incrementAndGet();
     final long startTime = Time.monotonicNow();
@@ -86,7 +86,7 @@ public class CreatePipelineCommandHandler implements CommandHandler {
         createCommand.getDatanodeList().stream()
             .map(DatanodeDetails::getFromProtoBuf)
             .collect(Collectors.toList());
-
+    HandleResult handleResult = HandleResult.FAIL;
     try {
       XceiverServerSpi server = ozoneContainer.getWriteChannel();
       if (!server.isExist(pipelineID)) {
@@ -108,6 +108,7 @@ public class CreatePipelineCommandHandler implements CommandHandler {
             });
         LOG.info("Created Pipeline {} {} #{}.",
             createCommand.getType(), createCommand.getFactor(), pipelineID);
+        handleResult = HandleResult.SUCC;
       }
     } catch (IOException e) {
       LOG.error("Can't create pipeline {} {} #{}", createCommand.getType(),
@@ -116,6 +117,7 @@ public class CreatePipelineCommandHandler implements CommandHandler {
       long endTime = Time.monotonicNow();
       totalTime += endTime - startTime;
     }
+    return handleResult;
   }
 
   /**

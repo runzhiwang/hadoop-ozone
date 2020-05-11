@@ -189,4 +189,6 @@ public interface Container<CONTAINERDATA extends ContainerData> extends RwLock {
    *         false otherwise
    */
   boolean scanData(DataTransferThrottler throttler, Canceler canceler);
+
+  boolean tryWriteLock();
 }
