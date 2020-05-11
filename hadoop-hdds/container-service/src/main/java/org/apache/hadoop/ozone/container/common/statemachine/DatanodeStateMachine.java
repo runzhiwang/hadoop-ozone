@@ -508,13 +508,13 @@ public class DatanodeStateMachine implements Closeable {
 
   private Runnable getContainerCommandHandlerRunnable() {
     return () -> {
+      long now;
       while (getContext().getState() != DatanodeStates.SHUTDOWN) {
         Map<Long, Queue<SCMCommand>> containerCommandMap =
             getContext().getContainerCommandMap();
         Iterator<Map.Entry<Long, Queue<SCMCommand>>> iter =
             containerCommandMap.entrySet().iterator();
 
-        boolean hasCommand = false;
         while (iter.hasNext()) {
           Map.Entry<Long, Queue<SCMCommand>> entry = iter.next();
 
@@ -535,7 +535,6 @@ public class DatanodeStateMachine implements Closeable {
               if (command != null) {
                 commandDispatcher.handle(command);
                 commandsHandled++;
-                hasCommand = true;
               } else if (queue.isEmpty()) {
                 iter.remove();
               }
@@ -545,9 +544,13 @@ public class DatanodeStateMachine implements Closeable {
           }
         }
 
-        if (!hasCommand) {
+        if (containerCommandMap.size() == 0) {
           try {
-            Thread.sleep(100);
+            // Sleep till the next HB + 1 second.
+            now = Time.monotonicNow();
+            if (nextHB.get() > now) {
+              Thread.sleep((nextHB.get() - now) + 1000L);
+            }
           } catch (InterruptedException e) {
             // Ignore this exception.
           }
