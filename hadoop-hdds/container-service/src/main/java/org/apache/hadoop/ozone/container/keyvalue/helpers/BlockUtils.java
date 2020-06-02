@@ -60,9 +60,9 @@ public final class BlockUtils {
     Preconditions.checkNotNull(cache);
     Preconditions.checkNotNull(containerData.getDbFile());
     try {
-      return cache.getDB(containerData.getContainerID(), containerData
-          .getContainerDBType(), containerData.getDbFile().getAbsolutePath(),
-          conf);
+      return cache.getDB(containerData.getContainerID(),
+          containerData.getVolume().getHddsRootDir().toString(),
+          containerData.getDbPath());
     } catch (IOException ex) {
       String message = String.format("Error opening DB. Container:%s " +
           "ContainerPath:%s", containerData.getContainerID(), containerData
@@ -76,12 +76,14 @@ public final class BlockUtils {
    * @param container - Container data.
    * @param conf - Configuration.
    */
-  public static void removeDB(KeyValueContainerData container,
+  public static void removeFromDB(KeyValueContainerData container,
       ConfigurationSource conf) {
     Preconditions.checkNotNull(container);
     ContainerCache cache = ContainerCache.getInstance(conf);
     Preconditions.checkNotNull(cache);
-    cache.removeDB(container.getDbFile().getAbsolutePath());
+    cache.removeFromDB(container.getContainerID(),
+        container.getVolume().getHddsRootDir().toString(),
+        container.getDbPath());
   }
 
   /**
@@ -93,18 +95,12 @@ public final class BlockUtils {
     cache.shutdownCache();
   }
 
-  /**
-   * Add a DB handler into cache.
-   *
-   * @param db - DB handler.
-   * @param containerDBPath - DB path of the container.
-   * @param conf configuration.
-   */
-  public static void addDB(ReferenceCountedDB db, String containerDBPath,
-      ConfigurationSource conf) {
+  public static ReferenceCountedDB allocateDB(long containerID,
+      String hddsVolumeDir, String containerDBType, ConfigurationSource conf)
+      throws IOException {
     ContainerCache cache = ContainerCache.getInstance(conf);
     Preconditions.checkNotNull(cache);
-    cache.addDB(containerDBPath, db);
+    return cache.allocateDB(containerID, hddsVolumeDir, containerDBType, conf);
   }
 
   /**
@@ -124,6 +120,4 @@ public final class BlockUtils {
           "the bytes array.", NO_SUCH_BLOCK);
     }
   }
-
-
 }

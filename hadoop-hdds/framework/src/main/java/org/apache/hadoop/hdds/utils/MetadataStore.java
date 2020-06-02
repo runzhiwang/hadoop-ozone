@@ -43,12 +43,16 @@ public interface MetadataStore extends Closeable{
    */
   void put(byte[] key, byte[] value) throws IOException;
 
+  void put(String category, byte[] key, byte[] value) throws IOException;
+
   /**
    * @return true if the metadata store is empty.
    *
    * @throws IOException
    */
   boolean isEmpty() throws IOException;
+
+  boolean isEmpty(String category) throws IOException;
 
   /**
    * Returns the value mapped to the given key in byte array.
@@ -59,6 +63,8 @@ public interface MetadataStore extends Closeable{
    */
   byte[] get(byte[] key) throws IOException;
 
+  byte[] get(String category, byte[] key) throws IOException;
+
   /**
    * Deletes a key from the metadata store.
    *
@@ -66,6 +72,8 @@ public interface MetadataStore extends Closeable{
    * @throws IOException
    */
   void delete(byte[] key) throws IOException;
+
+  void delete(String category, byte[] key) throws IOException;
 
   /**
    * Returns a certain range of key value pairs as a list based on a
@@ -99,6 +107,10 @@ public interface MetadataStore extends Closeable{
       int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException;
 
+  List<Map.Entry<byte[], byte[]>> getRangeKVs(String category,
+      byte[] startKey, int count, MetadataKeyFilter... filters)
+      throws IOException, IllegalArgumentException;
+
   /**
    * This method is very similar to {@link #getRangeKVs}, the only
    * different is this method is supposed to return a sequential range
@@ -118,6 +130,10 @@ public interface MetadataStore extends Closeable{
       int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException;
 
+  List<Map.Entry<byte[], byte[]>> getSequentialRangeKVs(String category,
+      byte[] startKey, int count, MetadataKeyFilter... filters)
+      throws IOException, IllegalArgumentException;
+
   /**
    * A batch of PUT, DELETE operations handled as a single atomic write.
    *
@@ -129,13 +145,19 @@ public interface MetadataStore extends Closeable{
    * Compact the entire database.
    * @throws IOException
    */
-  void compactDB() throws IOException;
+  void compactRange() throws IOException;
+
+  void compactRange(String category) throws IOException;
 
   /**
    * Flush the outstanding I/O operations of the DB.
    * @param sync if true will sync the outstanding I/Os to the disk.
    */
   void flushDB(boolean sync) throws IOException;
+
+  void flush() throws IOException;
+
+  void flush(String category) throws IOException;
 
   /**
    * Destroy the content of the specified database,
@@ -160,6 +182,9 @@ public interface MetadataStore extends Closeable{
   ImmutablePair<byte[], byte[]> peekAround(int offset, byte[] from)
       throws IOException, IllegalArgumentException;
 
+  ImmutablePair<byte[], byte[]> peekAround(String category, int offset,
+      byte[] from) throws IOException, IllegalArgumentException;
+
   /**
    * Iterates entries in the database from a certain key.
    * Applies the given {@link EntryConsumer} to the key and value of
@@ -176,11 +201,18 @@ public interface MetadataStore extends Closeable{
   void iterate(byte[] from, EntryConsumer consumer)
       throws IOException;
 
+  void iterate(String category, byte[] from, EntryConsumer consumer)
+      throws IOException;
+
   /**
    * Returns the iterator for this metadata store.
    * @return MetaStoreIterator
    */
-  MetaStoreIterator<KeyValue> iterator();
+  MetaStoreIterator<KeyValue> iterator() throws IOException;
+
+  MetaStoreIterator<KeyValue> iterator(String category) throws IOException;
+
+  void dropCategory(String category) throws IOException;
 
   /**
    * Class used to represent the key and value pair of a db entry.

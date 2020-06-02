@@ -101,10 +101,6 @@ public final class OzoneConfigKeys {
   public static final boolean OZONE_UNSAFEBYTEOPERATIONS_ENABLED_DEFAULT
       = true;
 
-  public static final String OZONE_CONTAINER_CACHE_SIZE =
-      "ozone.container.cache.size";
-  public static final int OZONE_CONTAINER_CACHE_DEFAULT = 1024;
-
   public static final String OZONE_SCM_BLOCK_SIZE =
       "ozone.scm.block.size";
   public static final String OZONE_SCM_BLOCK_SIZE_DEFAULT = "256MB";
@@ -353,6 +349,11 @@ public final class OzoneConfigKeys {
       "hdds.datanode.storage.utilization.critical.threshold";
   public static final double
       HDDS_DATANODE_STORAGE_UTILIZATION_CRITICAL_THRESHOLD_DEFAULT = 0.95;
+
+
+  public static final String HDDS_DATANODE_DISK_ROCKSDB_LIMIT =
+      "hdds.datanode.disk.rocksdb.limit";
+  public static final int HDDS_DATANODE_DISK_ROCKSDB_LIMIT_DEFAULT = 2;
 
   public static final String OZONE_SECURITY_ENABLED_KEY =
       "ozone.security.enabled";

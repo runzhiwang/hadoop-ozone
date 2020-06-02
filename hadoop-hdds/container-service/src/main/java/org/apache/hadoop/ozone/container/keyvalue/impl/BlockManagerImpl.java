@@ -26,6 +26,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
+import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
@@ -87,17 +88,18 @@ public class BlockManagerImpl implements BlockManager {
         "operation.");
     Preconditions.checkState(data.getContainerID() >= 0, "Container Id " +
         "cannot be negative");
+    ContainerData containerData = container.getContainerData();
     // We are not locking the key manager since LevelDb serializes all actions
     // against a single DB. We rely on DB level locking to avoid conflicts.
     try(ReferenceCountedDB db = BlockUtils.
-        getDB((KeyValueContainerData) container.getContainerData(), config)) {
+        getDB((KeyValueContainerData) containerData, config)) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
 
       long bcsId = data.getBlockCommitSequenceId();
-      long containerBCSId = ((KeyValueContainerData) container.
-          getContainerData()).getBlockCommitSequenceId();
+      long containerBCSId = ((KeyValueContainerData) containerData)
+          .getBlockCommitSequenceId();
 
       // default blockCommitSequenceId for any block is 0. It the putBlock
       // request is not coming via Ratis(for test scenarios), it will be 0.
@@ -115,9 +117,11 @@ public class BlockManagerImpl implements BlockManager {
       }
       // update the blockData as well as BlockCommitSequenceId here
       BatchOperation batch = new BatchOperation();
-      batch.put(Longs.toByteArray(data.getLocalID()),
+      batch.put(container.getContainerData().getContainerIDStr(),
+          Longs.toByteArray(data.getLocalID()),
           data.getProtoBufMessage().toByteArray());
-      batch.put(DB_BLOCK_COMMIT_SEQUENCE_ID_KEY, Longs.toByteArray(bcsId));
+      batch.put(containerData.getContainerIDStr(),
+          DB_BLOCK_COMMIT_SEQUENCE_ID_KEY, Longs.toByteArray(bcsId));
 
       // Set Bytes used, this bytes used will be updated for every write and
       // only get committed for every put block. In this way, when datanode
@@ -125,12 +129,14 @@ public class BlockManagerImpl implements BlockManager {
       // block length is used, And also on restart the blocks committed to DB
       // is only used to compute the bytes used. This is done to keep the
       // current behavior and avoid DB write during write chunk operation.
-      batch.put(DB_CONTAINER_BYTES_USED_KEY,
-          Longs.toByteArray(container.getContainerData().getBytesUsed()));
+      batch.put(containerData.getContainerIDStr(),
+          DB_CONTAINER_BYTES_USED_KEY,
+          Longs.toByteArray(containerData.getBytesUsed()));
 
       // Set Block Count for a container.
-      batch.put(DB_BLOCK_COUNT_KEY,
-          Longs.toByteArray(container.getContainerData().getKeyCount() + 1));
+      batch.put(containerData.getContainerIDStr(),
+          DB_BLOCK_COUNT_KEY,
+          Longs.toByteArray(containerData.getKeyCount() + 1));
 
       db.getStore().writeBatch(batch);
 
@@ -245,11 +251,11 @@ public class BlockManagerImpl implements BlockManager {
 
       // Update DB to delete block and set block count and bytes used.
       BatchOperation batch = new BatchOperation();
-      batch.delete(blockKey);
+      batch.delete(cData.getContainerIDStr(), blockKey);
       // Update DB to delete block and set block count.
       // No need to set bytes used here, as bytes used is taken care during
       // delete chunk.
-      batch.put(DB_BLOCK_COUNT_KEY,
+      batch.put(cData.getContainerIDStr(), DB_BLOCK_COUNT_KEY,
           Longs.toByteArray(container.getContainerData().getKeyCount() - 1));
       db.getStore().writeBatch(batch);
 

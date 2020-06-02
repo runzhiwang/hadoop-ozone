@@ -272,6 +272,7 @@ public final class ContainerDataYaml {
         kvData.setMetadataPath((String) nodes.get(
             OzoneConsts.METADATA_PATH));
         kvData.setChunksPath((String) nodes.get(OzoneConsts.CHUNKS_PATH));
+        kvData.setDbPath((String) nodes.get(OzoneConsts.DB_PATH));
         Map<String, String> meta = (Map) nodes.get(OzoneConsts.METADATA);
         kvData.setMetadata(meta);
         kvData.setChecksum((String) nodes.get(OzoneConsts.CHECKSUM));

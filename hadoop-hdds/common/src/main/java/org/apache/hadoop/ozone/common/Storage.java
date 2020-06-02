@@ -48,7 +48,7 @@ public abstract class Storage {
   public static final String STORAGE_DIR_CURRENT = "current";
   protected static final String STORAGE_FILE_VERSION = "VERSION";
   public static final String CONTAINER_DIR = "containerDir";
-
+  public static final String RocksDB_DIR = "RocksDBDir"
   private final NodeType nodeType;
   private final File root;
   private final File storageDir;

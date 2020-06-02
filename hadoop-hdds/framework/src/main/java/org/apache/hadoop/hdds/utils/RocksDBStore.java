@@ -25,13 +25,7 @@ import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.ratis.thirdparty.com.google.common.annotations.
     VisibleForTesting;
-import org.rocksdb.DbPath;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.RocksIterator;
-import org.rocksdb.WriteBatch;
-import org.rocksdb.WriteOptions;
+import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +38,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 
 /**
  * RocksDB implementation of ozone metadata store.
@@ -55,17 +51,43 @@ public class RocksDBStore implements MetadataStore {
   private RocksDB db = null;
   private File dbLocation;
   private WriteOptions writeOptions;
-  private Options dbOptions;
+  private DBOptions dbOptions;
   private ObjectName statMBeanName;
+  private Map<String, ColumnFamilyHandle> columnMap =
+      new ConcurrentHashMap<>();
 
-  public RocksDBStore(File dbFile, Options options) throws IOException {
+  public RocksDBStore(File dbFile, DBOptions options,
+      ColumnFamilyOptions defaultColumnOpts) throws IOException {
     Preconditions.checkNotNull(dbFile, "DB file location cannot be null");
     RocksDB.loadLibrary();
     dbOptions = options;
     dbLocation = dbFile;
     writeOptions = new WriteOptions();
     try {
-      db = RocksDB.open(dbOptions, dbLocation.getAbsolutePath());
+      File f = new File(dbLocation.getAbsolutePath());
+      boolean newDB = !f.exists();
+
+      List<ColumnFamilyDescriptor> descriptors = new ArrayList<>();
+
+      if (newDB) {
+        descriptors.add(new ColumnFamilyDescriptor(
+            RocksDB.DEFAULT_COLUMN_FAMILY, defaultColumnOpts));
+      } else {
+        List<byte[]> columnFamilies =
+            RocksDB.listColumnFamilies(new Options(), dbLocation.getAbsolutePath());
+        for (byte[] column : columnFamilies) {
+          descriptors.add(new ColumnFamilyDescriptor(column, new ColumnFamilyOptions()));
+        }
+      }
+
+      List<ColumnFamilyHandle> handles = new ArrayList<>();
+      db = RocksDB.open(
+          dbOptions, dbLocation.getAbsolutePath(), descriptors, handles);
+
+      for (ColumnFamilyHandle handle : handles) {
+        columnMap.put(new String(handle.getName()), handle);
+      }
+
       if (dbOptions.statistics() != null) {
         Map<String, String> jmxProperties = new HashMap<String, String>();
         jmxProperties.put("dbName", dbFile.getName());
@@ -90,10 +112,10 @@ public class RocksDBStore implements MetadataStore {
       LOG.debug("RocksDB successfully opened.");
       LOG.debug("[Option] dbLocation= {}", dbLocation.getAbsolutePath());
       LOG.debug("[Option] createIfMissing = {}", options.createIfMissing());
-      LOG.debug("[Option] compactionPriority= {}", options.compactionStyle());
-      LOG.debug("[Option] compressionType= {}", options.compressionType());
+      LOG.debug("[Option] compactionPriority= {}", defaultColumnOpts.compactionStyle());
+      LOG.debug("[Option] compressionType= {}", defaultColumnOpts.compressionType());
       LOG.debug("[Option] maxOpenFiles= {}", options.maxOpenFiles());
-      LOG.debug("[Option] writeBufferSize= {}", options.writeBufferSize());
+      LOG.debug("[Option] writeBufferSize= {}", defaultColumnOpts.writeBufferSize());
     }
   }
 
@@ -107,10 +129,29 @@ public class RocksDBStore implements MetadataStore {
     return new IOException(output, e);
   }
 
+  private String getDefaultColumnFamily() {
+    return new String(RocksDB.DEFAULT_COLUMN_FAMILY);
+  }
+
+  private ColumnFamilyHandle getColumnFamilyHandle(String columnFamilyName)
+      throws IOException {
+    if (!columnMap.containsKey(columnFamilyName)) {
+      throw new IOException(
+              "columnMap does not container column:" + columnFamilyName);
+    }
+    return columnMap.get(columnFamilyName);
+  }
+
   @Override
   public void put(byte[] key, byte[] value) throws IOException {
+    put(getDefaultColumnFamily(), key, value);
+  }
+
+  @Override
+  public void put(String category, byte[] key, byte[] value)
+      throws IOException {
     try {
-      db.put(writeOptions, key, value);
+      db.put(getColumnFamilyHandle(category), writeOptions, key, value);
     } catch (RocksDBException e) {
       throw toIOException("Failed to put key-value to metadata store", e);
     }
@@ -118,9 +159,14 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public boolean isEmpty() throws IOException {
+    return isEmpty(getDefaultColumnFamily());
+  }
+
+  @Override
+  public boolean isEmpty(String category) throws IOException {
     RocksIterator it = null;
     try {
-      it = db.newIterator();
+      it = db.newIterator(getColumnFamilyHandle(category));
       it.seekToFirst();
       return !it.isValid();
     } finally {
@@ -132,8 +178,13 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public byte[] get(byte[] key) throws IOException {
+    return get(getDefaultColumnFamily(), key);
+  }
+
+  @Override
+  public byte[] get(String category, byte[] key) throws IOException {
     try {
-      return db.get(key);
+      return db.get(getColumnFamilyHandle(category), key);
     } catch (RocksDBException e) {
       throw toIOException("Failed to get the value for the given key", e);
     }
@@ -141,8 +192,13 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public void delete(byte[] key) throws IOException {
+    delete(getDefaultColumnFamily(), key);
+  }
+
+  @Override
+  public void delete(String category, byte[] key) throws IOException {
     try {
-      db.delete(key);
+      db.delete(getColumnFamilyHandle(category), key);
     } catch (RocksDBException e) {
       throw toIOException("Failed to delete the given key", e);
     }
@@ -152,17 +208,37 @@ public class RocksDBStore implements MetadataStore {
   public List<Map.Entry<byte[], byte[]>> getRangeKVs(byte[] startKey,
       int count, MetadataKeyFilters.MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    return getRangeKVs(startKey, count, false, filters);
+    return getRangeKVs(getDefaultColumnFamily(),
+        startKey, count, false, filters);
+  }
+
+  @Override
+  public List<Map.Entry<byte[], byte[]>> getRangeKVs(
+      String category, byte[] startKey, int count,
+      MetadataKeyFilters.MetadataKeyFilter... filters)
+      throws IOException, IllegalArgumentException {
+    return getRangeKVs(category, startKey, count, false, filters);
   }
 
   @Override
   public List<Map.Entry<byte[], byte[]>> getSequentialRangeKVs(byte[] startKey,
       int count, MetadataKeyFilters.MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    return getRangeKVs(startKey, count, true, filters);
+    return getRangeKVs(getDefaultColumnFamily(),
+        startKey, count, true, filters);
   }
 
-  private List<Map.Entry<byte[], byte[]>> getRangeKVs(byte[] startKey,
+  @Override
+  public List<Map.Entry<byte[], byte[]>> getSequentialRangeKVs(
+      String category, byte[] startKey, int count,
+      MetadataKeyFilters.MetadataKeyFilter... filters)
+      throws IOException, IllegalArgumentException {
+    return getRangeKVs(category,
+        startKey, count, true, filters);
+  }
+
+  private List<Map.Entry<byte[], byte[]>> getRangeKVs(
+      String category, byte[] startKey,
       int count, boolean sequential,
       MetadataKeyFilters.MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
@@ -174,7 +250,7 @@ public class RocksDBStore implements MetadataStore {
     }
     RocksIterator it = null;
     try {
-      it = db.newIterator();
+      it = db.newIterator(getColumnFamilyHandle(category));
       if (startKey == null) {
         it.seekToFirst();
       } else {
@@ -250,10 +326,12 @@ public class RocksDBStore implements MetadataStore {
         for (BatchOperation.SingleOperation opt : operations) {
           switch (opt.getOpt()) {
           case DELETE:
-            writeBatch.delete(opt.getKey());
+            writeBatch.delete(
+                getColumnFamilyHandle(opt.getCategory()), opt.getKey());
             break;
           case PUT:
-            writeBatch.put(opt.getKey(), opt.getValue());
+            writeBatch.put(getColumnFamilyHandle(opt.getCategory()),
+                opt.getKey(), opt.getValue());
             break;
           default:
             throw new IllegalArgumentException("Invalid operation "
@@ -268,10 +346,15 @@ public class RocksDBStore implements MetadataStore {
   }
 
   @Override
-  public void compactDB() throws IOException {
+  public void compactRange() throws IOException {
+    compactRange(getDefaultColumnFamily());
+  }
+
+  @Override
+  public void compactRange(String category) throws IOException {
     if (db != null) {
       try {
-        db.compactRange();
+        db.compactRange(getColumnFamilyHandle(category));
       } catch (RocksDBException e) {
         throw toIOException("Failed to compact db", e);
       }
@@ -288,6 +371,20 @@ public class RocksDBStore implements MetadataStore {
       } catch (RocksDBException e) {
         throw toIOException("Failed to flush db", e);
       }
+    }
+  }
+
+  @Override
+  public void flush() throws IOException {
+    flush(getDefaultColumnFamily());
+  }
+
+  @Override
+  public void flush(String category) throws IOException {
+    try (FlushOptions options = new FlushOptions().setWaitForFlush(true)) {
+      db.flush(options, getColumnFamilyHandle(category));
+    } catch (RocksDBException e) {
+      throw toIOException("Failed to flush column:" + category, e);
     }
   }
 
@@ -322,9 +419,15 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public ImmutablePair<byte[], byte[]> peekAround(int offset,
       byte[] from) throws IOException, IllegalArgumentException {
+    return peekAround(getDefaultColumnFamily(), offset, from);
+  }
+
+  @Override
+  public ImmutablePair<byte[], byte[]> peekAround(String category, int offset,
+      byte[] from) throws IOException, IllegalArgumentException {
     RocksIterator it = null;
     try {
-      it = db.newIterator();
+      it = db.newIterator(getColumnFamilyHandle(category));
       if (from == null) {
         it.seekToFirst();
       } else {
@@ -358,9 +461,15 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public void iterate(byte[] from, EntryConsumer consumer)
       throws IOException {
+    iterate(getDefaultColumnFamily(), from, consumer);
+  }
+
+  @Override
+  public void iterate(String category, byte[] from, EntryConsumer consumer)
+      throws IOException {
     RocksIterator it = null;
     try {
-      it = db.newIterator();
+      it = db.newIterator(getColumnFamilyHandle(category));
       if (from != null) {
         it.seek(from);
       } else {
@@ -398,8 +507,21 @@ public class RocksDBStore implements MetadataStore {
   }
 
   @Override
-  public MetaStoreIterator<KeyValue> iterator() {
-    return new RocksDBStoreIterator(db.newIterator());
+  public MetaStoreIterator<KeyValue> iterator() throws IOException {
+    return iterator(getDefaultColumnFamily());
   }
 
+  @Override
+  public MetaStoreIterator<KeyValue> iterator(String category) throws IOException {
+    return new RocksDBStoreIterator(db.newIterator(getColumnFamilyHandle(category)));
+  }
+
+  @Override
+  public void dropCategory(String category) throws IOException {
+    try {
+      db.dropColumnFamily(getColumnFamilyHandle(category));
+    } catch (RocksDBException e) {
+      throw toIOException("Failed to dropColumnFamily", e);
+    }
+  }
 }

@@ -70,8 +70,10 @@ public final class KeyValueContainerUtil {
    * @param containerMetaDataPath
    * @throws IOException
    */
-  public static void createContainerMetaData(File containerMetaDataPath, File
-      chunksPath, File dbFile, ConfigurationSource conf) throws IOException {
+  public static ReferenceCountedDB createContainerMetaData(
+      File containerMetaDataPath, File chunksPath, ConfigurationSource conf,
+      long containerID, String hddsVolumeDir, String containerDBType)
+      throws IOException {
     Preconditions.checkNotNull(containerMetaDataPath);
     Preconditions.checkNotNull(conf);
 
@@ -92,12 +94,9 @@ public final class KeyValueContainerUtil {
           " Path: " + chunksPath);
     }
 
-    MetadataStore store = MetadataStoreBuilder.newBuilder().setConf(conf)
-        .setCreateIfMissing(true).setDbFile(dbFile).build();
-    ReferenceCountedDB db =
-        new ReferenceCountedDB(store, dbFile.getAbsolutePath());
-    //add db handler into cache
-    BlockUtils.addDB(db, dbFile.getAbsolutePath(), conf);
+    ReferenceCountedDB db = BlockUtils.allocateDB(
+        containerID, hddsVolumeDir, containerDBType, conf);
+    return db;
   }
 
   /**
@@ -120,8 +119,8 @@ public final class KeyValueContainerUtil {
         .getMetadataPath());
     File chunksPath = new File(containerData.getChunksPath());
 
-    // Close the DB connection and remove the DB handler from cache
-    BlockUtils.removeDB(containerData, conf);
+    // remove container metadata from db
+    BlockUtils.removeFromDB(containerData, conf);
 
     // Delete the Container MetaData path.
     FileUtils.deleteDirectory(containerMetaDataPath);
@@ -145,20 +144,17 @@ public final class KeyValueContainerUtil {
       ConfigurationSource config) throws IOException {
 
     long containerID = kvContainerData.getContainerID();
-    File metadataPath = new File(kvContainerData.getMetadataPath());
 
     // Verify Checksum
     ContainerUtils.verifyChecksum(kvContainerData);
 
-    File dbFile = KeyValueContainerLocationUtil.getContainerDBFile(
-        metadataPath, containerID);
+    File dbFile = kvContainerData.getDbFile();
     if (!dbFile.exists()) {
       LOG.error("Container DB file is missing for ContainerID {}. " +
           "Skipping loading of this container.", containerID);
       // Don't further process this container, as it is missing db file.
       return;
     }
-    kvContainerData.setDbFile(dbFile);
 
 
     boolean isBlockMetadataSet = false;

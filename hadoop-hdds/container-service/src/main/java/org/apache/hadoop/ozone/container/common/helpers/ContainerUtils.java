@@ -80,24 +80,6 @@ public final class ContainerUtils {
   }
 
   /**
-   * get containerName from a container file.
-   *
-   * @param containerFile - File
-   * @return Name of the container.
-   */
-  public static String getContainerNameFromFile(File containerFile) {
-    Preconditions.checkNotNull(containerFile);
-    return Paths.get(containerFile.getParent()).resolve(
-        removeExtension(containerFile.getName())).toString();
-  }
-
-  public static long getContainerIDFromFile(File containerFile) {
-    Preconditions.checkNotNull(containerFile);
-    String containerID = getContainerNameFromFile(containerFile);
-    return Long.parseLong(containerID);
-  }
-
-  /**
    * Verifies that this is indeed a new container.
    *
    * @param containerFile - Container File to verify
@@ -114,10 +96,6 @@ public final class ContainerUtils {
       throw new FileAlreadyExistsException("container already exists on " +
           "disk.");
     }
-  }
-
-  public static String getContainerDbFileName(String containerName) {
-    return containerName + OzoneConsts.DN_CONTAINER_DB;
   }
 
   /**

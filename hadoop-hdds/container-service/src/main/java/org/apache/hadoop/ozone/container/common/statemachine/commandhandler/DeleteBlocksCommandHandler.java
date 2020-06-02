@@ -229,8 +229,9 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
           }
           // Found the block in container db,
           // use an atomic update to change its state to deleting.
-          batch.put(deletingKeyBytes, blkInfo);
-          batch.delete(blkBytes);
+          batch.put(
+              containerData.getContainerIDStr(), deletingKeyBytes, blkInfo);
+          batch.delete(containerData.getContainerIDStr(), blkBytes);
           try {
             containerDB.getStore().writeBatch(batch);
             newDeletionBlocks++;
@@ -260,11 +261,13 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       // greater.
       if (delTX.getTxID() > containerData.getDeleteTransactionId()) {
         // Update in DB pending delete key count and delete transaction ID.
-        batchOperation.put(DB_CONTAINER_DELETE_TRANSACTION_KEY,
+        batchOperation.put(containerData.getContainerIDStr(),
+            DB_CONTAINER_DELETE_TRANSACTION_KEY,
             Longs.toByteArray(delTX.getTxID()));
       }
 
-      batchOperation.put(DB_PENDING_DELETE_BLOCK_COUNT_KEY, Longs.toByteArray(
+      batchOperation.put(containerData.getContainerIDStr(),
+          DB_PENDING_DELETE_BLOCK_COUNT_KEY, Longs.toByteArray(
           containerData.getNumPendingDeletionBlocks() + newDeletionBlocks));
 
       containerDB.getStore().writeBatch(batchOperation);

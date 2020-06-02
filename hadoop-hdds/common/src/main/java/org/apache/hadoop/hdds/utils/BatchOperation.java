@@ -41,15 +41,15 @@ public class BatchOperation {
   /**
    * Add a PUT operation into the batch.
    */
-  public void put(byte[] key, byte[] value) {
-    operations.add(new SingleOperation(Operation.PUT, key, value));
+  public void put(String category, byte[] key, byte[] value) {
+    operations.add(new SingleOperation(Operation.PUT, category, key, value));
   }
 
   /**
    * Add a DELETE operation into the batch.
    */
-  public void delete(byte[] key) {
-    operations.add(new SingleOperation(Operation.DELETE, key, null));
+  public void delete(String category, byte[] key) {
+    operations.add(new SingleOperation(Operation.DELETE, category, key, null));
 
   }
 
@@ -64,17 +64,23 @@ public class BatchOperation {
   static class SingleOperation {
 
     private final Operation opt;
+    private final String category;
     private final byte[] key;
     private final byte[] value;
 
-    SingleOperation(Operation opt, byte[] key, byte[] value) {
+    SingleOperation(Operation opt, String category, byte[] key, byte[] value) {
       this.opt = opt;
+      this.category = category;
       this.key = Objects.requireNonNull(key, "key cannot be null");
       this.value = value;
     }
 
     public Operation getOpt() {
       return opt;
+    }
+
+    public String getCategory() {
+      return category;
     }
 
     public byte[] getKey() {

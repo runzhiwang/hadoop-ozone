@@ -41,12 +41,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.Math.max;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
-import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.*;
 
 /**
  * This class represents the KeyValueContainer metadata, which is the
@@ -67,7 +62,7 @@ public class KeyValueContainerData extends ContainerData {
   //Type of DB used to store key to chunks mapping
   private String containerDBType;
 
-  private File dbFile = null;
+  private String dbPath;
 
   /**
    * Number of pending deletion blocks in KeyValueContainer.
@@ -85,6 +80,7 @@ public class KeyValueContainerData extends ContainerData {
     KV_YAML_FIELDS.add(METADATA_PATH);
     KV_YAML_FIELDS.add(CHUNKS_PATH);
     KV_YAML_FIELDS.add(CONTAINER_DB_TYPE);
+    KV_YAML_FIELDS.add(DB_PATH);
   }
 
   /**
@@ -109,6 +105,9 @@ public class KeyValueContainerData extends ContainerData {
     this.deleteTransactionId = 0;
   }
 
+  public void setDbPath(String dbPath) {
+    this.dbPath = dbPath;
+  }
 
   /**
    * Sets Container dbFile. This should be called only during creation of
@@ -120,11 +119,19 @@ public class KeyValueContainerData extends ContainerData {
   }
 
   /**
+   * Returns container DB Path.
+   * @return dbPath
+   */
+  public String getDbPath() {
+    return dbPath;
+  }
+
+  /**
    * Returns container DB file.
    * @return dbFile
    */
   public File getDbFile() {
-    return dbFile;
+    return new File(dbPath);
   }
 
   /**
@@ -267,12 +274,12 @@ public class KeyValueContainerData extends ContainerData {
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
-    batchOperation.put(DB_CONTAINER_BYTES_USED_KEY,
+    batchOperation.put(getContainerIDStr(), DB_CONTAINER_BYTES_USED_KEY,
         Longs.toByteArray(getBytesUsed()));
-    batchOperation.put(DB_BLOCK_COUNT_KEY, Longs.toByteArray(
-        getKeyCount() - deletedBlockCount));
-    batchOperation.put(DB_PENDING_DELETE_BLOCK_COUNT_KEY, Longs.toByteArray(
-        getNumPendingDeletionBlocks() - deletedBlockCount));
+    batchOperation.put(getContainerIDStr(), DB_BLOCK_COUNT_KEY,
+        Longs.toByteArray(getKeyCount() - deletedBlockCount));
+    batchOperation.put(getContainerIDStr(), DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        Longs.toByteArray(getNumPendingDeletionBlocks() - deletedBlockCount));
     db.getStore().writeBatch(batchOperation);
   }
 

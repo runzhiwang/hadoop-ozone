@@ -171,12 +171,10 @@ import static org.junit.Assert.assertFalse;
         new KeyValueContainerCheck(containerData.getMetadataPath(), conf,
             containerID);
 
-    File metaDir = new File(containerData.getMetadataPath());
-    File dbFile = KeyValueContainerLocationUtil
-        .getContainerDBFile(metaDir, containerID);
-    containerData.setDbFile(dbFile);
     try (ReferenceCountedDB ignored =
-            BlockUtils.getDB(containerData, conf);
+            BlockUtils.allocateDB(containerData.getContainerID(),
+                containerData.getVolume().getHddsRootDir().toString(),
+                containerData.getContainerDBType(), conf);
         KeyValueBlockIterator kvIter = new KeyValueBlockIterator(containerID,
             new File(containerData.getContainerPath()))) {
       BlockData block = kvIter.nextBlock();

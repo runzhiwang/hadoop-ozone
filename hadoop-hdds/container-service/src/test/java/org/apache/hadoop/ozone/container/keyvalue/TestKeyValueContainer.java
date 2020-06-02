@@ -221,7 +221,7 @@ public class TestKeyValueContainer {
       metadataStore.getStore().put(OzoneConsts.DB_BLOCK_COUNT_KEY,
           Longs.toByteArray(numberOfKeysToWrite));
     }
-    BlockUtils.removeDB(keyValueContainerData, conf);
+    BlockUtils.removeFromDB(keyValueContainerData, conf);
 
     Map<String, String> metadata = new HashMap<>();
     metadata.put("key1", "value1");

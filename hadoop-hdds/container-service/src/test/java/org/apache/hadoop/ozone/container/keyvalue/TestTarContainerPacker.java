@@ -124,17 +124,14 @@ public class TestTarContainerPacker {
     long id = CONTAINER_ID.getAndIncrement();
 
     Path containerDir = dir.resolve("container" + id);
-    Path dbDir = containerDir.resolve("db");
     Path dataDir = containerDir.resolve("data");
-    Files.createDirectories(dbDir);
     Files.createDirectories(dataDir);
 
     KeyValueContainerData containerData = new KeyValueContainerData(
         id, layout,
         -1, UUID.randomUUID().toString(), UUID.randomUUID().toString());
     containerData.setChunksPath(dataDir.toString());
-    containerData.setMetadataPath(dbDir.getParent().toString());
-    containerData.setDbFile(dbDir.toFile());
+    containerData.setMetadataPath(dataDir.getParent().toString());
 
     return containerData;
   }

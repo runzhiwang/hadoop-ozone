@@ -168,6 +168,10 @@ public abstract class ContainerData {
     return containerID;
   }
 
+  public String getContainerIDStr() {
+    return String.valueOf(containerID);
+  }
+
   /**
    * Returns the path to base dir of the container.
    * @return Path to base dir.

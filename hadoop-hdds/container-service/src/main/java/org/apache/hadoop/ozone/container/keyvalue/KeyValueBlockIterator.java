@@ -92,10 +92,11 @@ public class KeyValueBlockIterator implements BlockIterator<BlockData>,
         containerFile);
     KeyValueContainerData keyValueContainerData = (KeyValueContainerData)
         containerData;
-    keyValueContainerData.setDbFile(KeyValueContainerLocationUtil
-        .getContainerDBFile(metdataPath, containerId));
-    db = BlockUtils.getDB(keyValueContainerData, new
-        OzoneConfiguration());
+    db = BlockUtils.allocateDB(keyValueContainerData.getContainerID(),
+        keyValueContainerData.getVolume().getHddsRootDir().toString(),
+        keyValueContainerData.getContainerDBType(),
+        new OzoneConfiguration());
+    keyValueContainerData.setDbPath(db.getContainerDBPath());
     blockIterator = db.getStore().iterator();
     blockFilter = filter;
   }

@@ -28,16 +28,6 @@
 
   <!--Container Settings used by Datanode-->
   <property>
-    <name>ozone.container.cache.size</name>
-    <value>1024</value>
-    <tag>PERFORMANCE, CONTAINER, STORAGE</tag>
-    <description>The open container is cached on the data node side. We maintain
-      an LRU
-      cache for caching the recently used containers. This setting controls the
-      size of that cache.
-    </description>
-  </property>
-  <property>
     <name>dfs.container.ipc</name>
     <value>9859</value>
     <tag>OZONE, CONTAINER, MANAGEMENT</tag>
@@ -841,6 +831,13 @@
   </description>
   </property>
   <property>
+    <name>ozone.datanode.disk.rocksdb.limit</name>
+    <value>2</value>
+    <tag>OZONE, SCM, PIPELINE</tag>
+    <description>Max number of pipelines per datanode can be engaged in.
+  </description>
+  </property>
+  <property>
     <name>ozone.scm.ratis.pipeline.limit</name>
     <value>0</value>
     <tag>OZONE, SCM, PIPELINE</tag>
@@ -1252,6 +1249,15 @@
     <description>
       If a datanode overall storage utilization exceeds more than this
       value, the datanode will be marked out of space.
+    </description>
+  </property>
+
+  <property>
+    <name>hdds.datanode.disk.rocksdb.limit</name>
+    <value>2</value>
+    <tag>OZONE, DATANODE</tag>
+    <description>
+      Maxum number of Rocksdb created for each disk.
     </description>
   </property>
 

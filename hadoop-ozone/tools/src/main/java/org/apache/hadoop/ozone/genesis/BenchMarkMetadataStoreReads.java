@@ -57,7 +57,7 @@ public class BenchMarkMetadataStoreReads {
       store.put(Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
     }
     if (type.compareTo(CLOSED_TYPE) == 0) {
-      store.compactDB();
+      store.compactRange();
     }
   }
 

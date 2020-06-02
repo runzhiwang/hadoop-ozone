@@ -299,9 +299,11 @@ public class BlockDeletingService extends BackgroundService {
           String blockId =
               entry.substring(OzoneConsts.DELETING_KEY_PREFIX.length());
           String deletedEntry = OzoneConsts.DELETED_KEY_PREFIX + blockId;
-          batch.put(DFSUtil.string2Bytes(deletedEntry),
+          batch.put(containerData.getContainerIDStr(),
+              DFSUtil.string2Bytes(deletedEntry),
               DFSUtil.string2Bytes(blockId));
-          batch.delete(DFSUtil.string2Bytes(entry));
+          batch.delete(containerData.getContainerIDStr(),
+              DFSUtil.string2Bytes(entry));
         });
 
 

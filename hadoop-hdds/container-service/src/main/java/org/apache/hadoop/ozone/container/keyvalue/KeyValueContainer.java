@@ -124,18 +124,17 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       // Check if it is new Container.
       ContainerUtils.verifyIsNewContainer(containerMetaDataPath);
 
-      //Create Metadata path chunks path and metadata db
-      File dbFile = getContainerDBFile();
-      KeyValueContainerUtil.createContainerMetaData(containerMetaDataPath,
-          chunksPath, dbFile, config);
-
       String impl = config.getTrimmed(OzoneConfigKeys.OZONE_METADATA_STORE_IMPL,
           OzoneConfigKeys.OZONE_METADATA_STORE_IMPL_DEFAULT);
+
+      //Create Metadata path chunks path and metadata db
+      ReferenceCountedDB db = KeyValueContainerUtil.createContainerMetaData(containerMetaDataPath,
+          chunksPath, config, containerID, hddsVolumeDir, impl);
 
       //Set containerData for the KeyValueContainer.
       containerData.setChunksPath(chunksPath.getPath());
       containerData.setContainerDBType(impl);
-      containerData.setDbFile(dbFile);
+      containerData.setDbPath(db.getContainerDBPath());
       containerData.setVolume(containerVolume);
 
       // Create .container file
@@ -186,13 +185,10 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
     File chunksPath = KeyValueContainerLocationUtil.getChunksLocationPath(
         hddsVolumeDir, scmId, containerId);
-    File dbFile = KeyValueContainerLocationUtil.getContainerDBFile(
-        containerMetaDataPath, containerId);
 
     //Set containerData for the KeyValueContainer.
     containerData.setMetadataPath(containerMetaDataPath.getPath());
     containerData.setChunksPath(chunksPath.getPath());
-    containerData.setDbFile(dbFile);
     containerData.setVolume(containerVolume);
   }
 
@@ -367,10 +363,10 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
     }
   }
 
-  private void compactDB() throws StorageContainerException {
+  private void compactRange() throws StorageContainerException {
     try {
       try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
-        db.getStore().compactDB();
+        db.getStore().compactRange();
       }
     } catch (StorageContainerException ex) {
       throw ex;
@@ -383,7 +379,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
   private void flushAndSyncDB() throws StorageContainerException {
     try {
       try (ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
-        db.getStore().flushDB(true);
+        db.getStore().flush(containerData.getContainerIDStr());
         LOG.info("Container {} is synced with bcsId {}.",
             containerData.getContainerID(),
             containerData.getBlockCommitSequenceId());
@@ -531,7 +527,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
               "Where as ContainerId="
               + getContainerData().getContainerID() + " is in state " + state);
     }
-    compactDB();
+    compactRange();
     packer.pack(this, destination);
   }
 
