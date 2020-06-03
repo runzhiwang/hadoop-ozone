@@ -36,6 +36,7 @@ import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE_ROCKSDB;
 
 import org.iq80.leveldb.Options;
 import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.Statistics;
 import org.rocksdb.StatsLevel;
 import org.slf4j.Logger;
@@ -54,7 +55,7 @@ public class MetadataStoreBuilder {
   private Optional<ConfigurationSource> optionalConf = Optional.empty();
   private String dbType;
   @VisibleForTesting
-  public static final Map<ConfigurationSource, org.rocksdb.Options>
+  public static final Map<ConfigurationSource, org.rocksdb.DBOptions>
       CACHED_OPTS = new ConcurrentHashMap<>();
   @VisibleForTesting
   public static final OzoneConfiguration DEFAULT_CONF =
@@ -117,17 +118,12 @@ public class MetadataStoreBuilder {
       }
       return new LevelDBStore(dbFile, options);
     } else if (CONTAINER_DB_TYPE_ROCKSDB.equals(dbType)) {
-      org.rocksdb.Options opts;
+      org.rocksdb.DBOptions opts;
       // Used cached options if config object passed down is the same
       if (CACHED_OPTS.containsKey(conf)) {
         opts = CACHED_OPTS.get(conf);
       } else {
-        opts = new org.rocksdb.Options();
-        if (cacheSize > 0) {
-          BlockBasedTableConfig tableConfig = new BlockBasedTableConfig();
-          tableConfig.setBlockCacheSize(cacheSize);
-          opts.setTableFormatConfig(tableConfig);
-        }
+        opts = new org.rocksdb.DBOptions();
 
         String rocksDbStat = conf.getTrimmed(
             OZONE_METADATA_STORE_ROCKSDB_STATISTICS,
@@ -141,7 +137,15 @@ public class MetadataStoreBuilder {
       }
       opts.setCreateIfMissing(createIfMissing);
       CACHED_OPTS.put(conf, opts);
-      return new RocksDBStore(dbFile, opts);
+
+      ColumnFamilyOptions defaultColumnOpts = new ColumnFamilyOptions();
+      if (cacheSize > 0) {
+        BlockBasedTableConfig tableConfig = new BlockBasedTableConfig();
+        tableConfig.setBlockCacheSize(cacheSize);
+        defaultColumnOpts.setTableFormatConfig(tableConfig);
+      }
+
+      return new RocksDBStore(dbFile, opts, defaultColumnOpts);
     }
     
     throw new IllegalArgumentException("Invalid Container DB type. Expecting "

@@ -51,6 +51,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -279,14 +280,20 @@ public class TestOzoneContainer {
         chunkList.add(info.getProtoBufMessage());
       }
       blockData.setChunks(chunkList);
-      db.getStore().put(Longs.toByteArray(blockID.getLocalID()),
+      db.getStore().put(
+          RocksDB.DEFAULT_COLUMN_FAMILY,
+          Longs.toByteArray(blockID.getLocalID()),
           blockData.getProtoBufMessage().toByteArray());
     }
 
     // Set Block count and used bytes.
-    db.getStore().put(OzoneConsts.DB_BLOCK_COUNT_KEY,
+    db.getStore().put(
+        RocksDB.DEFAULT_COLUMN_FAMILY,
+        OzoneConsts.DB_BLOCK_COUNT_KEY,
         Longs.toByteArray(blocks));
-    db.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+    db.getStore().put(
+        RocksDB.DEFAULT_COLUMN_FAMILY,
+        OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
         Longs.toByteArray(usedBytes));
 
     // remaining available capacity of the container

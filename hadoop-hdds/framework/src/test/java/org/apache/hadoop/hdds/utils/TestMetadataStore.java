@@ -45,6 +45,9 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import static org.junit.runners.Parameterized.Parameters;
+
+import org.rocksdb.RocksDB;
 import org.slf4j.event.Level;
 
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE_LEVELDB;
@@ -54,7 +57,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.runners.Parameterized.Parameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * Test class for ozone metadata store.
@@ -104,8 +106,8 @@ public class TestMetadataStore {
     // {a0 : a-value0} to {a9 : a-value9}
     // {b0 : b-value0} to {b9 : b-value9}
     for (int i = 0; i < 10; i++) {
-      store.put(getBytes("a" + i), getBytes("a-value" + i));
-      store.put(getBytes("b" + i), getBytes("b-value" + i));
+      store.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a" + i), getBytes("a-value" + i));
+      store.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b" + i), getBytes("b-value" + i));
     }
   }
 
@@ -124,7 +126,7 @@ public class TestMetadataStore {
     //As database is empty, check whether iterator is working as expected or
     // not.
     MetaStoreIterator<MetadataStore.KeyValue> metaStoreIterator =
-        dbStore.iterator();
+        dbStore.iterator(RocksDB.DEFAULT_COLUMN_FAMILY);
     assertFalse(metaStoreIterator.hasNext());
     try {
       metaStoreIterator.next();
@@ -135,10 +137,10 @@ public class TestMetadataStore {
     }
 
     for (int i = 0; i < 10; i++) {
-      store.put(getBytes("a" + i), getBytes("a-value" + i));
+      store.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a" + i), getBytes("a-value" + i));
     }
 
-    metaStoreIterator = dbStore.iterator();
+    metaStoreIterator = dbStore.iterator(RocksDB.DEFAULT_COLUMN_FAMILY);
 
     int i = 0;
     while (metaStoreIterator.hasNext()) {
@@ -240,18 +242,18 @@ public class TestMetadataStore {
   @Test
   public void testGetDelete() throws IOException {
     for (int i = 0; i < 10; i++) {
-      byte[] va = store.get(getBytes("a" + i));
+      byte[] va = store.get(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a" + i));
       assertEquals("a-value" + i, getString(va));
 
-      byte[] vb = store.get(getBytes("b" + i));
+      byte[] vb = store.get(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b" + i));
       assertEquals("b-value" + i, getString(vb));
     }
 
     String keyToDel = "del-" + UUID.randomUUID().toString();
-    store.put(getBytes(keyToDel), getBytes(keyToDel));
-    assertEquals(keyToDel, getString(store.get(getBytes(keyToDel))));
-    store.delete(getBytes(keyToDel));
-    assertEquals(null, store.get(getBytes(keyToDel)));
+    store.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes(keyToDel), getBytes(keyToDel));
+    assertEquals(keyToDel, getString(store.get(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes(keyToDel))));
+    store.delete(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes(keyToDel));
+    assertEquals(null, store.get(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes(keyToDel)));
   }
 
   @Test
@@ -281,7 +283,7 @@ public class TestMetadataStore {
     String k = null;
     String v = null;
     ImmutablePair<byte[], byte[]> current =
-        store.peekAround(0, getBytes(peekKey));
+        store.peekAround(RocksDB.DEFAULT_COLUMN_FAMILY, 0, getBytes(peekKey));
     if (current != null) {
       k = getString(current.getKey());
       v = getString(current.getValue());
@@ -293,7 +295,7 @@ public class TestMetadataStore {
     k = null;
     v = null;
     ImmutablePair<byte[], byte[]> prev =
-        store.peekAround(-1, getBytes(peekKey));
+        store.peekAround(RocksDB.DEFAULT_COLUMN_FAMILY, -1, getBytes(peekKey));
     if (prev != null) {
       k = getString(prev.getKey());
       v = getString(prev.getValue());
@@ -305,7 +307,7 @@ public class TestMetadataStore {
     k = null;
     v = null;
     ImmutablePair<byte[], byte[]> next =
-        store.peekAround(1, getBytes(peekKey));
+        store.peekAround(RocksDB.DEFAULT_COLUMN_FAMILY, 1, getBytes(peekKey));
     if (next != null) {
       k = getString(next.getKey());
       v = getString(next.getValue());
@@ -318,7 +320,7 @@ public class TestMetadataStore {
   public void testIterateKeys() throws IOException {
     // iterate keys from b0
     ArrayList<String> result = Lists.newArrayList();
-    store.iterate(getBytes("b0"), (k, v) -> {
+    store.iterate(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b0"), (k, v) -> {
       // b-value{i}
       String value = getString(v);
       char num = value.charAt(value.length() - 1);
@@ -336,7 +338,7 @@ public class TestMetadataStore {
 
     // iterate from a non exist key
     result.clear();
-    store.iterate(getBytes("xyz"), (k, v) -> {
+    store.iterate(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("xyz"), (k, v) -> {
       result.add(getString(v));
       return true;
     });
@@ -344,7 +346,7 @@ public class TestMetadataStore {
 
     // iterate from the beginning
     result.clear();
-    store.iterate(null, (k, v) -> {
+    store.iterate(RocksDB.DEFAULT_COLUMN_FAMILY, null, (k, v) -> {
       result.add(getString(v));
       return true;
     });
@@ -356,24 +358,24 @@ public class TestMetadataStore {
     List<Map.Entry<byte[], byte[]>> result = null;
 
     // Set empty startKey will return values from beginning.
-    result = store.getRangeKVs(null, 5);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 5);
     assertEquals(5, result.size());
     assertEquals("a-value2", getString(result.get(2).getValue()));
 
     // Empty list if startKey doesn't exist.
-    result = store.getRangeKVs(getBytes("a12"), 5);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a12"), 5);
     assertEquals(0, result.size());
 
     // Returns max available entries after a valid startKey.
-    result = store.getRangeKVs(getBytes("b0"), MAX_GETRANGE_LENGTH);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b0"), MAX_GETRANGE_LENGTH);
     assertEquals(10, result.size());
     assertEquals("b0", getString(result.get(0).getKey()));
     assertEquals("b-value0", getString(result.get(0).getValue()));
-    result = store.getRangeKVs(getBytes("b0"), 5);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b0"), 5);
     assertEquals(5, result.size());
 
     // Both startKey and count are honored.
-    result = store.getRangeKVs(getBytes("a9"), 2);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a9"), 2);
     assertEquals(2, result.size());
     assertEquals("a9", getString(result.get(0).getKey()));
     assertEquals("a-value9", getString(result.get(0).getValue()));
@@ -383,38 +385,38 @@ public class TestMetadataStore {
     // Filter keys by prefix.
     // It should returns all "b*" entries.
     MetadataKeyFilter filter1 = new KeyPrefixFilter().addFilter("b");
-    result = store.getRangeKVs(null, 100, filter1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,   null, 100, filter1);
     assertEquals(10, result.size());
     assertTrue(result.stream().allMatch(entry ->
         new String(entry.getKey(), UTF_8).startsWith("b")
     ));
     assertEquals(20, filter1.getKeysScannedNum());
     assertEquals(10, filter1.getKeysHintedNum());
-    result = store.getRangeKVs(null, 3, filter1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 3, filter1);
     assertEquals(3, result.size());
-    result = store.getRangeKVs(getBytes("b3"), 1, filter1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b3"), 1, filter1);
     assertEquals("b-value3", getString(result.get(0).getValue()));
 
     // Define a customized filter that filters keys by suffix.
     // Returns all "*2" entries.
     MetadataKeyFilter filter2 = (preKey, currentKey, nextKey)
         -> getString(currentKey).endsWith("2");
-    result = store.getRangeKVs(null, MAX_GETRANGE_LENGTH, filter2);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, MAX_GETRANGE_LENGTH, filter2);
     assertEquals(2, result.size());
     assertEquals("a2", getString(result.get(0).getKey()));
     assertEquals("b2", getString(result.get(1).getKey()));
-    result = store.getRangeKVs(null, 1, filter2);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 1, filter2);
     assertEquals(1, result.size());
     assertEquals("a2", getString(result.get(0).getKey()));
 
     // Apply multiple filters.
-    result = store.getRangeKVs(null, MAX_GETRANGE_LENGTH, filter1, filter2);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, MAX_GETRANGE_LENGTH, filter1, filter2);
     assertEquals(1, result.size());
     assertEquals("b2", getString(result.get(0).getKey()));
     assertEquals("b-value2", getString(result.get(0).getValue()));
 
     // If filter is null, no effect.
-    result = store.getRangeKVs(null, 1, (MetadataKeyFilter[]) null);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 1, (MetadataKeyFilter[]) null);
     assertEquals(1, result.size());
     assertEquals("a0", getString(result.get(0).getKey()));
   }
@@ -425,14 +427,14 @@ public class TestMetadataStore {
         -> StringUtils.bytes2String(currentKey).endsWith("2");
     // Suppose to return a2 and b2
     List<Map.Entry<byte[], byte[]>> result =
-        store.getRangeKVs(null, MAX_GETRANGE_LENGTH, suffixFilter);
+        store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, MAX_GETRANGE_LENGTH, suffixFilter);
     assertEquals(2, result.size());
     assertEquals("a2", StringUtils.bytes2String(result.get(0).getKey()));
     assertEquals("b2", StringUtils.bytes2String(result.get(1).getKey()));
 
     // Suppose to return just a2, because when it iterates to a3,
     // the filter no long matches and it should stop from there.
-    result = store.getSequentialRangeKVs(null,
+    result = store.getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null,
         MAX_GETRANGE_LENGTH, suffixFilter);
     assertEquals(1, result.size());
     assertEquals("a2", StringUtils.bytes2String(result.get(0).getKey()));
@@ -442,23 +444,23 @@ public class TestMetadataStore {
   public void testGetRangeLength() throws IOException {
     List<Map.Entry<byte[], byte[]>> result = null;
 
-    result = store.getRangeKVs(null, 0);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 0);
     assertEquals(0, result.size());
 
-    result = store.getRangeKVs(null, 1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 1);
     assertEquals(1, result.size());
 
     // Count less than zero is invalid.
     expectedException.expect(IllegalArgumentException.class);
     expectedException.expectMessage("Invalid count given");
-    store.getRangeKVs(null, -1);
+    store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, -1);
   }
 
   @Test
   public void testInvalidStartKey() throws IOException {
     // If startKey is invalid, the returned list should be empty.
     List<Map.Entry<byte[], byte[]>> kvs =
-        store.getRangeKVs(getBytes("unknownKey"), MAX_GETRANGE_LENGTH);
+        store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("unknownKey"), MAX_GETRANGE_LENGTH);
     assertEquals(0, kvs.size());
   }
 
@@ -476,10 +478,10 @@ public class TestMetadataStore {
         .setDBType(storeImpl)
         .build();
 
-    dbStore.put(getBytes("key1"), getBytes("value1"));
-    dbStore.put(getBytes("key2"), getBytes("value2"));
+    dbStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("key1"), getBytes("value1"));
+    dbStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("key2"), getBytes("value2"));
 
-    assertFalse(dbStore.isEmpty());
+    assertFalse(dbStore.isEmpty(RocksDB.DEFAULT_COLUMN_FAMILY));
     assertTrue(dbDir.exists());
     assertTrue(dbDir.listFiles().length > 0);
 
@@ -503,15 +505,16 @@ public class TestMetadataStore {
 
     List<String> expectedResult = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
-      dbStore.put(getBytes("batch-" + i), getBytes("batch-value-" + i));
+      dbStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("batch-" + i), getBytes("batch-value-" + i));
       expectedResult.add("batch-" + i);
     }
 
     BatchOperation batch = new BatchOperation();
-    batch.delete(getBytes("batch-2"));
-    batch.delete(getBytes("batch-3"));
-    batch.delete(getBytes("batch-4"));
-    batch.put(getBytes("batch-new-2"), getBytes("batch-new-value-2"));
+    batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("batch-2"));
+    batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("batch-3"));
+    batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("batch-4"));
+    batch.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("batch-new-2"),
+        getBytes("batch-new-value-2"));
 
     expectedResult.remove("batch-2");
     expectedResult.remove("batch-3");
@@ -522,7 +525,7 @@ public class TestMetadataStore {
 
     Iterator<String> it = expectedResult.iterator();
     AtomicInteger count = new AtomicInteger(0);
-    dbStore.iterate(null, (key, value) -> {
+    dbStore.iterate(RocksDB.DEFAULT_COLUMN_FAMILY, null, (key, value) -> {
       count.incrementAndGet();
       return it.hasNext() && it.next().equals(getString(key));
     });
@@ -571,7 +574,7 @@ public class TestMetadataStore {
         .addFilter("a0")
         .addFilter("a1")
         .addFilter("b", true);
-    result = store.getRangeKVs(null, 100, filter1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 100, filter1);
     assertEquals(2, result.size());
     assertTrue(result.stream().anyMatch(entry -> new String(entry.getKey(),
         UTF_8)
@@ -579,11 +582,11 @@ public class TestMetadataStore {
         entry.getKey(), UTF_8).startsWith("a1")));
 
     filter1 = new KeyPrefixFilter(true).addFilter("b", true);
-    result = store.getRangeKVs(null, 100, filter1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 100, filter1);
     assertEquals(0, result.size());
 
     filter1 = new KeyPrefixFilter().addFilter("b", true);
-    result = store.getRangeKVs(null, 100, filter1);
+    result = store.getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, 100, filter1);
     assertEquals(10, result.size());
     assertTrue(result.stream().allMatch(entry -> new String(entry.getKey(),
         UTF_8)

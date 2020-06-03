@@ -39,6 +39,7 @@ import org.apache.hadoop.hdds.utils.MetadataStoreBuilder;
 import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,7 +168,9 @@ public final class KeyValueContainerUtil {
 
       // Set pending deleted block count.
       byte[] pendingDeleteBlockCount =
-          containerDB.getStore().get(DB_PENDING_DELETE_BLOCK_COUNT_KEY);
+          containerDB.getStore().get(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              DB_PENDING_DELETE_BLOCK_COUNT_KEY);
       if (pendingDeleteBlockCount != null) {
         kvContainerData.incrPendingDeletionBlocks(
             Longs.fromByteArray(pendingDeleteBlockCount));
@@ -177,7 +180,9 @@ public final class KeyValueContainerUtil {
             new MetadataKeyFilters.KeyPrefixFilter()
                 .addFilter(OzoneConsts.DELETING_KEY_PREFIX);
         int numPendingDeletionBlocks =
-            containerDB.getStore().getSequentialRangeKVs(null,
+            containerDB.getStore().getSequentialRangeKVs(
+                RocksDB.DEFAULT_COLUMN_FAMILY,
+                null,
                 Integer.MAX_VALUE, filter)
                 .size();
         kvContainerData.incrPendingDeletionBlocks(numPendingDeletionBlocks);
@@ -185,7 +190,8 @@ public final class KeyValueContainerUtil {
 
       // Set delete transaction id.
       byte[] delTxnId =
-          containerDB.getStore().get(DB_CONTAINER_DELETE_TRANSACTION_KEY);
+          containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY,
+              DB_CONTAINER_DELETE_TRANSACTION_KEY);
       if (delTxnId != null) {
         kvContainerData
             .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));
@@ -193,6 +199,7 @@ public final class KeyValueContainerUtil {
 
       // Set BlockCommitSequenceId.
       byte[] bcsId = containerDB.getStore().get(
+          RocksDB.DEFAULT_COLUMN_FAMILY,
           DB_BLOCK_COMMIT_SEQUENCE_ID_KEY);
       if (bcsId != null) {
         kvContainerData
@@ -202,14 +209,18 @@ public final class KeyValueContainerUtil {
       // Set bytes used.
       // commitSpace for Open Containers relies on usedBytes
       byte[] bytesUsed =
-          containerDB.getStore().get(DB_CONTAINER_BYTES_USED_KEY);
+          containerDB.getStore().get(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              DB_CONTAINER_BYTES_USED_KEY);
       if (bytesUsed != null) {
         isBlockMetadataSet = true;
         kvContainerData.setBytesUsed(Longs.fromByteArray(bytesUsed));
       }
 
       // Set block count.
-      byte[] blockCount = containerDB.getStore().get(DB_BLOCK_COUNT_KEY);
+      byte[] blockCount = containerDB.getStore().get(
+          RocksDB.DEFAULT_COLUMN_FAMILY,
+          DB_BLOCK_COUNT_KEY);
       if (blockCount != null) {
         isBlockMetadataSet = true;
         kvContainerData.setKeyCount(Longs.fromByteArray(blockCount));

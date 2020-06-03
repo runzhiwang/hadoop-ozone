@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 
 /**
@@ -100,9 +99,22 @@ public class LevelDBStore implements MetadataStore {
    * @param key   - key
    * @param value - value
    */
-  @Override
-  public void put(byte[] key, byte[] value) {
+//  @Override
+//  public void put(byte[] key, byte[] value) {
+//    db.put(key, value, writeOptions);
+//  }
+
+  public void put(String category, byte[] key, byte[] value)
+      throws IOException {
     db.put(key, value, writeOptions);
+//    throw new IOException(
+//        "put with category parameter not supported in LevelDBStore");
+  }
+
+  @Override
+  public void put(byte[] category, byte[] key, byte[] value)
+      throws IOException {
+    put(HddsServerUtil.getStringFromBytes(category), key, value);
   }
 
   /**
@@ -111,9 +123,20 @@ public class LevelDBStore implements MetadataStore {
    * @param key key
    * @return value
    */
+//  @Override
+//  public byte[] get(byte[] key) {
+//    return db.get(key);
+//  }
+
   @Override
-  public byte[] get(byte[] key) {
+  public byte[] get(String category, byte[] key) throws IOException {
     return db.get(key);
+//    return new byte[0];
+  }
+
+  @Override
+  public byte[] get(byte[] category, byte[] key) throws IOException {
+    return get(HddsServerUtil.getStringFromBytes(category), key);
   }
 
   /**
@@ -121,9 +144,19 @@ public class LevelDBStore implements MetadataStore {
    *
    * @param key - Key
    */
+//  @Override
+//  public void delete(byte[] key) {
+//    db.delete(key);
+//  }
+
   @Override
-  public void delete(byte[] key) {
+  public void delete(String category, byte[] key) throws IOException {
     db.delete(key);
+  }
+
+  @Override
+  public void delete(byte[] category, byte[] key) throws IOException {
+    delete(HddsServerUtil.getStringFromBytes(category), key);
   }
 
   /**
@@ -144,13 +177,29 @@ public class LevelDBStore implements MetadataStore {
    * @return boolean
    * @throws IOException
    */
+//  @Override
+//  public boolean isEmpty() throws IOException {
+//    try (DBIterator iter = db.iterator()) {
+//      iter.seekToFirst();
+//      boolean hasNext = !iter.hasNext();
+//      return hasNext;
+//    }
+//  }
+
   @Override
-  public boolean isEmpty() throws IOException {
+  public boolean isEmpty(String category) throws IOException {
     try (DBIterator iter = db.iterator()) {
       iter.seekToFirst();
       boolean hasNext = !iter.hasNext();
       return hasNext;
     }
+//    throw new IOException(
+//        "isEmpty with category parameter not supported in LevelDBStore");
+  }
+
+  @Override
+  public boolean isEmpty(byte[] category) throws IOException {
+    return isEmpty(HddsServerUtil.getStringFromBytes(category));
   }
 
   /**
@@ -176,8 +225,44 @@ public class LevelDBStore implements MetadataStore {
     JniDBFactory.factory.destroy(dbFile, dbOptions);
   }
 
+//  @Override
+//  public ImmutablePair<byte[], byte[]> peekAround(int offset,
+//      byte[] from) throws IOException, IllegalArgumentException {
+//    try (DBIterator it = db.iterator()) {
+//      if (from == null) {
+//        it.seekToFirst();
+//      } else {
+//        it.seek(from);
+//      }
+//      if (!it.hasNext()) {
+//        return null;
+//      }
+//      switch (offset) {
+//      case 0:
+//        Entry<byte[], byte[]> current = it.next();
+//        return new ImmutablePair<>(current.getKey(), current.getValue());
+//      case 1:
+//        if (it.next() != null && it.hasNext()) {
+//          Entry<byte[], byte[]> next = it.peekNext();
+//          return new ImmutablePair<>(next.getKey(), next.getValue());
+//        }
+//        break;
+//      case -1:
+//        if (it.hasPrev()) {
+//          Entry<byte[], byte[]> prev = it.peekPrev();
+//          return new ImmutablePair<>(prev.getKey(), prev.getValue());
+//        }
+//        break;
+//      default:
+//        throw new IllegalArgumentException(
+//            "Position can only be -1, 0 " + "or 1, but found " + offset);
+//      }
+//    }
+//    return null;
+//  }
+
   @Override
-  public ImmutablePair<byte[], byte[]> peekAround(int offset,
+  public ImmutablePair<byte[], byte[]> peekAround(String category, int offset,
       byte[] from) throws IOException, IllegalArgumentException {
     try (DBIterator it = db.iterator()) {
       if (from == null) {
@@ -210,10 +295,37 @@ public class LevelDBStore implements MetadataStore {
       }
     }
     return null;
+//    throw new IOException(
+//        "peekAround with category parameter not supported in LevelDBStore");
   }
 
   @Override
-  public void iterate(byte[] from, EntryConsumer consumer)
+  public ImmutablePair<byte[], byte[]> peekAround(byte[] category, int offset,
+      byte[] from) throws IOException, IllegalArgumentException {
+    return peekAround(HddsServerUtil.getStringFromBytes(category), offset, from);
+  }
+
+//  @Override
+//  public void iterate(byte[] from, EntryConsumer consumer)
+//      throws IOException {
+//    try (DBIterator iter = db.iterator()) {
+//      if (from != null) {
+//        iter.seek(from);
+//      } else {
+//        iter.seekToFirst();
+//      }
+//      while (iter.hasNext()) {
+//        Entry<byte[], byte[]> current = iter.next();
+//        if (!consumer.consume(current.getKey(),
+//            current.getValue())) {
+//          break;
+//        }
+//      }
+//    }
+//  }
+
+  @Override
+  public void iterate(String category, byte[] from, EntryConsumer consumer)
       throws IOException {
     try (DBIterator iter = db.iterator()) {
       if (from != null) {
@@ -229,24 +341,63 @@ public class LevelDBStore implements MetadataStore {
         }
       }
     }
+//    throw new IOException(
+//        "iterate with category parameter not supported in LevelDBStore");
+  }
+
+  @Override
+  public void iterate(byte[] category, byte[] from, EntryConsumer consumer)
+      throws IOException {
+    iterate(HddsServerUtil.getStringFromBytes(category), from, consumer);
   }
 
   /**
    * Compacts the DB by removing deleted keys etc.
    * @throws IOException if there is an error.
    */
+//  @Override
+//  public void compactRange() throws IOException {
+//    if(db != null) {
+//      // From LevelDB docs : begin == null and end == null means the whole DB.
+//      db.compactRange(null, null);
+//    }
+//  }
+
   @Override
-  public void compactDB() throws IOException {
+  public void compactRange(String category) throws IOException {
     if(db != null) {
       // From LevelDB docs : begin == null and end == null means the whole DB.
       db.compactRange(null, null);
     }
+//    throw new IOException(
+//        "compactRange with category parameter not supported in LevelDBStore");
+  }
+
+  @Override
+  public void compactRange(byte[] category) throws IOException {
+    compactRange(HddsServerUtil.getStringFromBytes(category));
   }
 
   @Override
   public void flushDB(boolean sync) {
     // TODO: Implement flush for level db
     // do nothing
+  }
+
+//  @Override
+//  public void flush() throws IOException {
+//
+//  }
+
+  @Override
+  public void flush(String category) throws IOException {
+//    throw new IOException(
+//        "flush with category parameter not supported in LevelDBStore");
+  }
+
+  @Override
+  public void flush(byte[] category) throws IOException {
+
   }
 
   @Override
@@ -273,18 +424,54 @@ public class LevelDBStore implements MetadataStore {
     }
   }
 
+//  @Override
+//  public List<Map.Entry<byte[], byte[]>> getRangeKVs(byte[] startKey,
+//      int count, MetadataKeyFilters.MetadataKeyFilter... filters)
+//      throws IOException, IllegalArgumentException {
+//    return getRangeKVs(startKey, count, false, filters);
+//  }
+
   @Override
-  public List<Map.Entry<byte[], byte[]>> getRangeKVs(byte[] startKey,
-      int count, MetadataKeyFilters.MetadataKeyFilter... filters)
+  public List<Entry<byte[], byte[]>> getRangeKVs(String category,
+      byte[] startKey, int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
     return getRangeKVs(startKey, count, false, filters);
+//    throw new IOException(
+//        "getRangeKVs with category parameter not supported in LevelDBStore");
   }
 
   @Override
-  public List<Map.Entry<byte[], byte[]>> getSequentialRangeKVs(byte[] startKey,
-      int count, MetadataKeyFilters.MetadataKeyFilter... filters)
+  public List<Entry<byte[], byte[]>> getRangeKVs(byte[] category,
+      byte[] startKey, int count, MetadataKeyFilter... filters)
+      throws IOException, IllegalArgumentException {
+    return getRangeKVs(HddsServerUtil.getStringFromBytes(category),
+        startKey, count, filters);
+  }
+
+//  @Override
+//  public List<Map.Entry<byte[], byte[]>> getSequentialRangeKVs(byte[] startKey,
+//      int count, MetadataKeyFilters.MetadataKeyFilter... filters)
+//      throws IOException, IllegalArgumentException {
+//    return getRangeKVs(startKey, count, true, filters);
+//  }
+
+  @Override
+  public List<Entry<byte[], byte[]>> getSequentialRangeKVs(String category,
+      byte[] startKey, int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
     return getRangeKVs(startKey, count, true, filters);
+//    throw new IOException("getSequentialRangeKVs with category parameter not" +
+//        "supported in LevelDBStore");
+  }
+
+  @Override
+  public List<Entry<byte[], byte[]>> getSequentialRangeKVs(byte[] category,
+      byte[] startKey, int count, MetadataKeyFilter... filters)
+      throws IOException, IllegalArgumentException {
+    return getSequentialRangeKVs(HddsServerUtil.getStringFromBytes(category),
+        startKey, count, filters);
+//    throw new IOException("getSequentialRangeKVs with category parameter not" +
+//        "supported in LevelDBStore");
   }
 
   /**
@@ -393,8 +580,24 @@ public class LevelDBStore implements MetadataStore {
     return result;
   }
 
+//  @Override
+//  public MetaStoreIterator<KeyValue> iterator() {
+//    return new LevelDBStoreIterator(db.iterator());
+//  }
+
   @Override
-  public MetaStoreIterator<KeyValue> iterator() {
+  public MetaStoreIterator<KeyValue> iterator(String category)
+      throws IOException {
     return new LevelDBStoreIterator(db.iterator());
+//    throw new IOException(
+//        "iterator with category parameter not supported in LevelDBStore");
+  }
+
+  @Override
+  public MetaStoreIterator<KeyValue> iterator(byte[] category)
+      throws IOException {
+    return iterator(HddsServerUtil.getStringFromBytes(category));
+//    throw new IOException(
+//        "iterator with category parameter not supported in LevelDBStore");
   }
 }

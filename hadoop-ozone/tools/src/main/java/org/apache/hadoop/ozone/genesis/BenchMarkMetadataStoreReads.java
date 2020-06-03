@@ -25,6 +25,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
+import org.rocksdb.RocksDB;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -54,17 +55,18 @@ public class BenchMarkMetadataStoreReads {
     byte[] data = RandomStringUtils.randomAlphanumeric(DATA_LEN)
         .getBytes(Charset.forName("UTF-8"));
     for (int x = 0; x < MAX_KEYS; x++) {
-      store.put(Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
+      store.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
     }
     if (type.compareTo(CLOSED_TYPE) == 0) {
-      store.compactDB();
+      store.compactRange(RocksDB.DEFAULT_COLUMN_FAMILY);
     }
   }
 
   @Benchmark
   public void test(Blackhole bh) throws IOException {
     long x = org.apache.commons.lang3.RandomUtils.nextLong(0L, MAX_KEYS);
-    bh.consume(
-        store.get(Long.toHexString(x).getBytes(Charset.forName("UTF-8"))));
+    bh.consume(store.get(RocksDB.DEFAULT_COLUMN_FAMILY,
+            Long.toHexString(x).getBytes(Charset.forName("UTF-8"))));
   }
 }

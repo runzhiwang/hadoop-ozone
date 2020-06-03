@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
@@ -473,5 +474,9 @@ public final class HddsServerUtil {
       LOG.info("Metrics source JvmMetrics already added to DataNode.");
     }
     return metricsSystem;
+  }
+
+  public static String getStringFromBytes(byte[] bytes) {
+    return new String(bytes, StandardCharsets.UTF_8);
   }
 }

@@ -33,6 +33,7 @@ import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters.KeyPrefixFilter;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.hdds.utils.MetadataStore.KeyValue;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +97,7 @@ public class KeyValueBlockIterator implements BlockIterator<BlockData>,
         .getContainerDBFile(metdataPath, containerId));
     db = BlockUtils.getDB(keyValueContainerData, new
         OzoneConfiguration());
-    blockIterator = db.getStore().iterator();
+    blockIterator = db.getStore().iterator(RocksDB.DEFAULT_COLUMN_FAMILY);
     blockFilter = filter;
   }
 

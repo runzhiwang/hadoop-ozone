@@ -51,7 +51,8 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
-import org.rocksdb.Options;
+import org.rocksdb.DBOptions;
+import org.rocksdb.RocksDB;
 
 import java.io.File;
 
@@ -165,9 +166,10 @@ public class TestKeyValueContainer {
             .getLocalID(), 0), 0, 1024);
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
-        metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
-            blockData
-            .getProtoBufMessage().toByteArray());
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            Longs.toByteArray(blockID.getLocalID()),
+            blockData.getProtoBufMessage().toByteArray());
       }
     }
   }
@@ -212,13 +214,17 @@ public class TestKeyValueContainer {
     try(ReferenceCountedDB metadataStore =
         BlockUtils.getDB(keyValueContainerData, conf)) {
       for (int i = 0; i < numberOfKeysToWrite; i++) {
-        metadataStore.getStore().put(("test" + i).getBytes(UTF_8),
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            ("test" + i).getBytes(UTF_8),
             "test".getBytes(UTF_8));
       }
 
       // As now when we put blocks, we increment block count and update in DB.
       // As for test, we are doing manually so adding key count to DB.
-      metadataStore.getStore().put(OzoneConsts.DB_BLOCK_COUNT_KEY,
+      metadataStore.getStore().put(
+          RocksDB.DEFAULT_COLUMN_FAMILY,
+          OzoneConsts.DB_BLOCK_COUNT_KEY,
           Longs.toByteArray(numberOfKeysToWrite));
     }
     BlockUtils.removeDB(keyValueContainerData, conf);
@@ -421,7 +427,7 @@ public class TestKeyValueContainer {
     Assert.assertTrue("Rocks DB options should be cached.",
         MetadataStoreBuilder.CACHED_OPTS.containsKey(conf));
 
-    Options opts = MetadataStoreBuilder.CACHED_OPTS.get(conf);
+    DBOptions opts = MetadataStoreBuilder.CACHED_OPTS.get(conf);
 
     // Create Container 2
     keyValueContainerData = new KeyValueContainerData(2L,
@@ -433,7 +439,7 @@ public class TestKeyValueContainer {
     keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
 
     assertEquals(initialSize + 1, MetadataStoreBuilder.CACHED_OPTS.size());
-    Options cachedOpts = MetadataStoreBuilder.CACHED_OPTS.get(conf);
+    DBOptions cachedOpts = MetadataStoreBuilder.CACHED_OPTS.get(conf);
     assertSame("Cache object should not be updated.", opts, cachedOpts);
   }
 }

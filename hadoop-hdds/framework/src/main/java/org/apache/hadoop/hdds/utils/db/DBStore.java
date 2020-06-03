@@ -90,7 +90,7 @@ public interface DBStore extends AutoCloseable, BatchOperationHandler {
    *
    * @throws IOException on Failure
    */
-  void compactDB() throws IOException;
+  void compactRange() throws IOException;
 
   /**
    * Moves a key from the Source Table to the destination Table.

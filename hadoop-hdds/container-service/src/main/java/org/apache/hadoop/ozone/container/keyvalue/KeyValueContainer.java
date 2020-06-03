@@ -64,6 +64,8 @@ import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Res
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.ERROR_IN_DB_SYNC;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.INVALID_CONTAINER_STATE;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNSUPPORTED_REQUEST;
+
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -365,7 +367,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
   private void compactDB() throws StorageContainerException {
     try {
       try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
-        db.getStore().compactDB();
+        db.getStore().compactRange(RocksDB.DEFAULT_COLUMN_FAMILY);
       }
     } catch (StorageContainerException ex) {
       throw ex;

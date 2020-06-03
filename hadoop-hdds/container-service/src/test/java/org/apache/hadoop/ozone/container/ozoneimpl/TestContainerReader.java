@@ -44,6 +44,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+import org.rocksdb.RocksDB;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -127,26 +128,39 @@ public class TestContainerReader {
 
       for (int i = 0; i < count; i++) {
         byte[] blkBytes = Longs.toByteArray(blockNames.get(i));
-        byte[] blkInfo = metadataStore.getStore().get(blkBytes);
+        byte[] blkInfo = metadataStore.getStore().get(
+            RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
 
         byte[] deletingKeyBytes =
             StringUtils.string2Bytes(OzoneConsts.DELETING_KEY_PREFIX +
                 blockNames.get(i));
 
-        metadataStore.getStore().delete(blkBytes);
-        metadataStore.getStore().put(deletingKeyBytes, blkInfo);
+        metadataStore.getStore().delete(
+            RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes, blkInfo);
       }
 
       if (setMetaData) {
-        metadataStore.getStore().put(DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_PENDING_DELETE_BLOCK_COUNT_KEY,
             Longs.toByteArray(count));
         long blkCount = Longs.fromByteArray(
-            metadataStore.getStore().get(DB_BLOCK_COUNT_KEY));
-        metadataStore.getStore().put(DB_BLOCK_COUNT_KEY,
+            metadataStore.getStore().get(
+                RocksDB.DEFAULT_COLUMN_FAMILY,
+                DB_BLOCK_COUNT_KEY));
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(blkCount - count));
         long bytesUsed = Longs.fromByteArray(
-            metadataStore.getStore().get(DB_CONTAINER_BYTES_USED_KEY));
-        metadataStore.getStore().put(DB_CONTAINER_BYTES_USED_KEY,
+            metadataStore.getStore().get(
+                RocksDB.DEFAULT_COLUMN_FAMILY,
+                DB_CONTAINER_BYTES_USED_KEY));
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_CONTAINER_BYTES_USED_KEY,
             Longs.toByteArray(bytesUsed - (count * blockLen)));
 
       }
@@ -175,15 +189,20 @@ public class TestContainerReader {
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
         blkNames.add(blockID.getLocalID());
-        metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
-            blockData
-                .getProtoBufMessage().toByteArray());
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            Longs.toByteArray(blockID.getLocalID()),
+            blockData.getProtoBufMessage().toByteArray());
       }
 
       if (setMetaData) {
-        metadataStore.getStore().put(DB_BLOCK_COUNT_KEY,
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(blockCount));
-        metadataStore.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
             Longs.toByteArray(blockCount * blockLen));
       }
     }

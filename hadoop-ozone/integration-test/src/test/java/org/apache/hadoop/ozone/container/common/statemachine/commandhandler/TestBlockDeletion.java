@@ -57,6 +57,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.rocksdb.RocksDB;
 import org.slf4j.event.Level;
 
 import java.io.File;
@@ -325,6 +326,7 @@ public class TestBlockDeletion {
           BlockUtils.getDB((KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
         Assert.assertNotNull(db.getStore().get(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
             Longs.toByteArray(blockID.getLocalID())));
       }
     }, omKeyLocationInfoGroups);
@@ -340,9 +342,12 @@ public class TestBlockDeletion {
           BlockUtils.getDB((KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
         Assert.assertNull(db.getStore().get(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
             Longs.toByteArray(blockID.getLocalID())));
-        Assert.assertNull(db.getStore().get(StringUtils.string2Bytes(
-            OzoneConsts.DELETING_KEY_PREFIX + blockID.getLocalID())));
+        Assert.assertNull(db.getStore().get(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            StringUtils.string2Bytes(
+                OzoneConsts.DELETING_KEY_PREFIX + blockID.getLocalID())));
         Assert.assertNotNull(StringUtils.string2Bytes(
             OzoneConsts.DELETED_KEY_PREFIX + blockID.getLocalID()));
       }

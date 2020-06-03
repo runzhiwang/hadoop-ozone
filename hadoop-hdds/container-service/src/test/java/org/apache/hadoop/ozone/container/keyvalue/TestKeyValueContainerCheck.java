@@ -45,6 +45,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -252,12 +253,16 @@ import static org.junit.Assert.assertFalse;
 
         if (i >= normalBlocks) {
           // deleted key
-          metadataStore.getStore().put(StringUtils.string2Bytes(
+          metadataStore.getStore().put(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              StringUtils.string2Bytes(
               OzoneConsts.DELETING_KEY_PREFIX + blockID.getLocalID()),
               blockData.getProtoBufMessage().toByteArray());
         } else {
           // normal key
-          metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
+          metadataStore.getStore().put(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              Longs.toByteArray(blockID.getLocalID()),
               blockData.getProtoBufMessage().toByteArray());
         }
       }

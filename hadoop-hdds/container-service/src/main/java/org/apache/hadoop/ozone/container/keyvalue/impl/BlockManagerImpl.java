@@ -34,6 +34,7 @@ import org.apache.hadoop.ozone.container.common.utils.ContainerCache;
 import org.apache.hadoop.hdds.utils.BatchOperation;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,9 +116,12 @@ public class BlockManagerImpl implements BlockManager {
       }
       // update the blockData as well as BlockCommitSequenceId here
       BatchOperation batch = new BatchOperation();
-      batch.put(Longs.toByteArray(data.getLocalID()),
+      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          Longs.toByteArray(data.getLocalID()),
           data.getProtoBufMessage().toByteArray());
-      batch.put(DB_BLOCK_COMMIT_SEQUENCE_ID_KEY, Longs.toByteArray(bcsId));
+      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          DB_BLOCK_COMMIT_SEQUENCE_ID_KEY,
+          Longs.toByteArray(bcsId));
 
       // Set Bytes used, this bytes used will be updated for every write and
       // only get committed for every put block. In this way, when datanode
@@ -125,11 +129,13 @@ public class BlockManagerImpl implements BlockManager {
       // block length is used, And also on restart the blocks committed to DB
       // is only used to compute the bytes used. This is done to keep the
       // current behavior and avoid DB write during write chunk operation.
-      batch.put(DB_CONTAINER_BYTES_USED_KEY,
+      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          DB_CONTAINER_BYTES_USED_KEY,
           Longs.toByteArray(container.getContainerData().getBytesUsed()));
 
       // Set Block Count for a container.
-      batch.put(DB_BLOCK_COUNT_KEY,
+      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          DB_BLOCK_COUNT_KEY,
           Longs.toByteArray(container.getContainerData().getKeyCount() + 1));
 
       db.getStore().writeBatch(batch);
@@ -245,11 +251,11 @@ public class BlockManagerImpl implements BlockManager {
 
       // Update DB to delete block and set block count and bytes used.
       BatchOperation batch = new BatchOperation();
-      batch.delete(blockKey);
+      batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY, blockKey);
       // Update DB to delete block and set block count.
       // No need to set bytes used here, as bytes used is taken care during
       // delete chunk.
-      batch.put(DB_BLOCK_COUNT_KEY,
+      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY, DB_BLOCK_COUNT_KEY,
           Longs.toByteArray(container.getContainerData().getKeyCount() - 1));
       db.getStore().writeBatch(batch);
 
@@ -283,7 +289,8 @@ public class BlockManagerImpl implements BlockManager {
         result = new ArrayList<>();
         byte[] startKeyInBytes = Longs.toByteArray(startLocalID);
         List<Map.Entry<byte[], byte[]>> range = db.getStore()
-            .getSequentialRangeKVs(startKeyInBytes, count,
+            .getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
+                startKeyInBytes, count,
                 MetadataKeyFilters.getNormalKeyFilter());
         for (Map.Entry<byte[], byte[]> entry : range) {
           BlockData value = BlockUtils.getBlockData(entry.getValue());
@@ -308,7 +315,8 @@ public class BlockManagerImpl implements BlockManager {
       throws IOException {
     byte[] blockKey = Longs.toByteArray(blockID.getLocalID());
 
-    byte[] blockData = db.getStore().get(blockKey);
+    byte[] blockData = db.getStore()
+        .get(RocksDB.DEFAULT_COLUMN_FAMILY, blockKey);
     if (blockData == null) {
       throw new StorageContainerException(NO_SUCH_BLOCK_ERR_MSG,
           NO_SUCH_BLOCK);
