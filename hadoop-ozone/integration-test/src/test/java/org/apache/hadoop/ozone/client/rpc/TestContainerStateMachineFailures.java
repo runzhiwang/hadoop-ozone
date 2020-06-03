@@ -59,6 +59,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.rocksdb.RocksDB;
 
 import java.io.File;
 import java.io.IOException;
@@ -609,7 +610,8 @@ public class TestContainerStateMachineFailures {
 
     // modify the bcsid for the container in the ROCKS DB thereby inducing
     // corruption
-    db.getStore().put(blockCommitSequenceIdKey, Longs.toByteArray(0));
+    db.getStore().put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        blockCommitSequenceIdKey, Longs.toByteArray(0));
     db.decrementReference();
     // shutdown of dn will take a snapsot which will persist the valid BCSID
     // recorded in the container2BCSIDMap in ContainerStateMachine

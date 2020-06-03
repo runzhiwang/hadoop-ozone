@@ -42,6 +42,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
+import org.rocksdb.RocksDB;
 
 /**
  * Test the JMX interface for the rocksdb metastore implementation.
@@ -127,7 +128,7 @@ public class TestRocksDBStoreMBean {
             .setCreateIfMissing(true).setDbFile(testDir).build();
 
     for (int i = 0; i < 10; i++) {
-      metadataStore.put("key".getBytes(UTF_8), "value".getBytes(UTF_8));
+      metadataStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, "key".getBytes(UTF_8), "value".getBytes(UTF_8));
     }
 
     return metadataStore;

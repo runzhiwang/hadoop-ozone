@@ -73,6 +73,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
@@ -165,7 +166,9 @@ public class TestBlockDeletingService {
             chunks.add(info);
           }
           kd.setChunks(chunks);
-          metadata.getStore().put(DFSUtil.string2Bytes(deleteStateName),
+          metadata.getStore().put(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              DFSUtil.string2Bytes(deleteStateName),
               kd.getProtoBufMessage().toByteArray());
           container.getContainerData().incrPendingDeletionBlocks(1);
         }
@@ -174,11 +177,17 @@ public class TestBlockDeletingService {
         container.getContainerData().setBytesUsed(
             blockLength * numOfBlocksPerContainer);
         // Set block count, bytes used and pending delete block count.
-        metadata.getStore().put(DB_BLOCK_COUNT_KEY,
+        metadata.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(numOfBlocksPerContainer));
-        metadata.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+        metadata.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
-        metadata.getStore().put(DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        metadata.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_PENDING_DELETE_BLOCK_COUNT_KEY,
             Ints.toByteArray(numOfBlocksPerContainer));
       }
     }
@@ -201,7 +210,10 @@ public class TestBlockDeletingService {
   private int getUnderDeletionBlocksCount(ReferenceCountedDB meta)
       throws IOException {
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
-        meta.getStore().getRangeKVs(null, 100,
+        meta.getStore().getRangeKVs(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            null,
+            100,
             new MetadataKeyFilters.KeyPrefixFilter()
                 .addFilter(OzoneConsts.DELETING_KEY_PREFIX));
     return underDeletionBlocks.size();
@@ -209,7 +221,10 @@ public class TestBlockDeletingService {
 
   private int getDeletedBlocksCount(ReferenceCountedDB db) throws IOException {
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
-        db.getStore().getRangeKVs(null, 100,
+        db.getStore().getRangeKVs(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            null,
+            100,
             new MetadataKeyFilters.KeyPrefixFilter()
             .addFilter(OzoneConsts.DELETED_KEY_PREFIX));
     return underDeletionBlocks.size();
@@ -269,9 +284,13 @@ public class TestBlockDeletingService {
       // Check finally DB counters.
       // Not checking bytes used, as handler is a mock call.
       Assert.assertEquals(0, Ints.fromByteArray(
-          meta.getStore().get(DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
+          meta.getStore().get(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
       Assert.assertEquals(0, Longs.fromByteArray(
-          meta.getStore().get(DB_BLOCK_COUNT_KEY)));
+          meta.getStore().get(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              DB_BLOCK_COUNT_KEY)));
     }
 
     svc.shutdown();

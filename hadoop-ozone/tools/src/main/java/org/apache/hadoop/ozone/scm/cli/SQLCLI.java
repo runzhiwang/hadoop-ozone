@@ -41,6 +41,7 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.hdds.utils.MetadataStore;
 import org.apache.hadoop.hdds.utils.MetadataStoreBuilder;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -343,7 +344,8 @@ public class SQLCLI  extends Configured implements Tool {
       executeSQL(conn, CREATE_BUCKET_INFO);
       executeSQL(conn, CREATE_KEY_INFO);
 
-      dbStore.iterate(null, (key, value) -> {
+      dbStore.iterate(RocksDB.DEFAULT_COLUMN_FAMILY,
+          null, (key, value) -> {
         String keyString = DFSUtilClient.bytes2String(key);
         KeyType type = getKeyType(keyString);
         try {
@@ -465,7 +467,8 @@ public class SQLCLI  extends Configured implements Tool {
         Connection conn = connectDB(outPath.toString())) {
       executeSQL(conn, CREATE_CONTAINER_INFO);
 
-      dbStore.iterate(null, (key, value) -> {
+      dbStore.iterate(RocksDB.DEFAULT_COLUMN_FAMILY,
+          null, (key, value) -> {
         long containerID = Longs.fromByteArray(key);
         ContainerInfo containerInfo = null;
         containerInfo = ContainerInfo.fromProtobuf(
@@ -527,7 +530,8 @@ public class SQLCLI  extends Configured implements Tool {
         Connection conn = connectDB(outPath.toString())) {
       executeSQL(conn, CREATE_OPEN_CONTAINER);
 
-      dbStore.iterate(null, (key, value) -> {
+      dbStore.iterate(RocksDB.DEFAULT_COLUMN_FAMILY,
+          null, (key, value) -> {
         String containerName = DFSUtil.bytes2String(key);
         Long containerUsed =
             Long.parseLong(DFSUtil.bytes2String(value));

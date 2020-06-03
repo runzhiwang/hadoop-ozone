@@ -58,6 +58,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 
 /**
  * This class is used to test KeyValue container block iterator.
@@ -271,18 +272,21 @@ public class TestKeyValueBlockIterator {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
-        metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
-            blockData
-            .getProtoBufMessage().toByteArray());
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            Longs.toByteArray(blockID.getLocalID()),
+            blockData.getProtoBufMessage().toByteArray());
       }
 
       for (int i = normalBlocks; i < deletedBlocks; i++) {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
-        metadataStore.getStore().put(DFSUtil.string2Bytes(OzoneConsts
-            .DELETING_KEY_PREFIX + blockID.getLocalID()), blockData
-            .getProtoBufMessage().toByteArray());
+        metadataStore.getStore().put(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            DFSUtil.string2Bytes(OzoneConsts
+            .DELETING_KEY_PREFIX + blockID.getLocalID()),
+            blockData.getProtoBufMessage().toByteArray());
       }
     }
   }

@@ -44,6 +44,7 @@ import java.nio.channels.FileChannel;
 import java.util.Arrays;
 
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -244,6 +245,7 @@ public class KeyValueContainerCheck {
           if (!chunkFile.exists()) {
             // concurrent mutation in Block DB? lookup the block again.
             byte[] bdata = db.getStore().get(
+                RocksDB.DEFAULT_COLUMN_FAMILY,
                 Longs.toByteArray(block.getBlockID().getLocalID()));
             if (bdata != null) {
               throw new IOException("Missing chunk file "

@@ -60,6 +60,7 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_CONTA
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER_DEFAULT;
 import org.apache.ratis.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -257,7 +258,7 @@ public class BlockDeletingService extends BackgroundService {
         KeyPrefixFilter filter =
             new KeyPrefixFilter().addFilter(OzoneConsts.DELETING_KEY_PREFIX);
         List<Map.Entry<byte[], byte[]>> toDeleteBlocks =
-            meta.getStore().getSequentialRangeKVs(null, blockLimitPerTask,
+            meta.getStore().getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, blockLimitPerTask,
                 filter);
         if (toDeleteBlocks.isEmpty()) {
           LOG.debug("No under deletion block found in container : {}",
@@ -299,9 +300,11 @@ public class BlockDeletingService extends BackgroundService {
           String blockId =
               entry.substring(OzoneConsts.DELETING_KEY_PREFIX.length());
           String deletedEntry = OzoneConsts.DELETED_KEY_PREFIX + blockId;
-          batch.put(DFSUtil.string2Bytes(deletedEntry),
+          batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+              DFSUtil.string2Bytes(deletedEntry),
               DFSUtil.string2Bytes(blockId));
-          batch.delete(DFSUtil.string2Bytes(entry));
+          batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY,
+              DFSUtil.string2Bytes(entry));
         });
 
 

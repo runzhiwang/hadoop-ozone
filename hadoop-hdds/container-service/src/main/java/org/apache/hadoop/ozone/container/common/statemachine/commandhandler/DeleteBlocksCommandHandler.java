@@ -49,6 +49,7 @@ import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.hdds.utils.BatchOperation;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -212,14 +213,16 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       for (Long blk : delTX.getLocalIDList()) {
         BatchOperation batch = new BatchOperation();
         byte[] blkBytes = Longs.toByteArray(blk);
-        byte[] blkInfo = containerDB.getStore().get(blkBytes);
+        byte[] blkInfo = containerDB.getStore().get(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            blkBytes);
         if (blkInfo != null) {
           byte[] deletingKeyBytes =
               DFSUtil.string2Bytes(OzoneConsts.DELETING_KEY_PREFIX + blk);
           byte[] deletedKeyBytes =
               DFSUtil.string2Bytes(OzoneConsts.DELETED_KEY_PREFIX + blk);
-          if (containerDB.getStore().get(deletingKeyBytes) != null
-              || containerDB.getStore().get(deletedKeyBytes) != null) {
+          if (containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes) != null
+              || containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletedKeyBytes) != null) {
             if (LOG.isDebugEnabled()) {
               LOG.debug(String.format(
                   "Ignoring delete for block %d in container %d."
@@ -229,8 +232,9 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
           }
           // Found the block in container db,
           // use an atomic update to change its state to deleting.
-          batch.put(deletingKeyBytes, blkInfo);
-          batch.delete(blkBytes);
+          batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+              deletingKeyBytes, blkInfo);
+          batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
           try {
             containerDB.getStore().writeBatch(batch);
             newDeletionBlocks++;
@@ -260,12 +264,16 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       // greater.
       if (delTX.getTxID() > containerData.getDeleteTransactionId()) {
         // Update in DB pending delete key count and delete transaction ID.
-        batchOperation.put(DB_CONTAINER_DELETE_TRANSACTION_KEY,
+        batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+            DB_CONTAINER_DELETE_TRANSACTION_KEY,
             Longs.toByteArray(delTX.getTxID()));
       }
 
-      batchOperation.put(DB_PENDING_DELETE_BLOCK_COUNT_KEY, Longs.toByteArray(
-          containerData.getNumPendingDeletionBlocks() + newDeletionBlocks));
+      batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+          Longs.toByteArray(
+              containerData.getNumPendingDeletionBlocks() +
+                    newDeletionBlocks));
 
       containerDB.getStore().writeBatch(batchOperation);
 

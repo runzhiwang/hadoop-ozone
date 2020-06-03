@@ -160,7 +160,7 @@ public class RDBStore implements DBStore {
   }
 
   @Override
-  public void compactDB() throws IOException {
+  public void compactRange() throws IOException {
     if (db != null) {
       try {
         db.compactRange();

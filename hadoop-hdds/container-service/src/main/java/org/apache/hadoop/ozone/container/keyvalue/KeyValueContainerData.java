@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.utils.BatchOperation;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.rocksdb.RocksDB;
 import org.yaml.snakeyaml.nodes.Tag;
 
 
@@ -267,12 +268,15 @@ public class KeyValueContainerData extends ContainerData {
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
-    batchOperation.put(DB_CONTAINER_BYTES_USED_KEY,
+    batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        DB_CONTAINER_BYTES_USED_KEY,
         Longs.toByteArray(getBytesUsed()));
-    batchOperation.put(DB_BLOCK_COUNT_KEY, Longs.toByteArray(
-        getKeyCount() - deletedBlockCount));
-    batchOperation.put(DB_PENDING_DELETE_BLOCK_COUNT_KEY, Longs.toByteArray(
-        getNumPendingDeletionBlocks() - deletedBlockCount));
+    batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        DB_BLOCK_COUNT_KEY,
+        Longs.toByteArray(getKeyCount() - deletedBlockCount));
+    batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        Longs.toByteArray(getNumPendingDeletionBlocks() - deletedBlockCount));
     db.getStore().writeBatch(batchOperation);
   }
 

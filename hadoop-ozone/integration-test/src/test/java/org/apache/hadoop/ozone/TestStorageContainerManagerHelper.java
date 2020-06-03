@@ -42,6 +42,7 @@ import com.google.common.primitives.Longs;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
+import org.rocksdb.RocksDB;
 
 /**
  * A helper class used by {@link TestStorageContainerManager} to generate
@@ -100,7 +101,8 @@ public class TestStorageContainerManagerHelper {
     KeyPrefixFilter filter =
         new KeyPrefixFilter().addFilter(OzoneConsts.DELETING_KEY_PREFIX);
     List<Map.Entry<byte[], byte[]>> kvs = meta.getStore()
-        .getRangeKVs(null, Integer.MAX_VALUE, filter);
+        .getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
+            null, Integer.MAX_VALUE, filter);
     kvs.forEach(entry -> {
       String key = DFSUtil.bytes2String(entry.getKey());
       pendingDeletionBlocks
@@ -123,7 +125,8 @@ public class TestStorageContainerManagerHelper {
     List<Long> allBlocks = Lists.newArrayList();
     ReferenceCountedDB meta = getContainerMetadata(containeID);
     List<Map.Entry<byte[], byte[]>> kvs =
-        meta.getStore().getRangeKVs(null, Integer.MAX_VALUE,
+        meta.getStore().getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
+            null, Integer.MAX_VALUE,
             MetadataKeyFilters.getNormalKeyFilter());
     kvs.forEach(entry -> {
       allBlocks.add(Longs.fromByteArray(entry.getKey()));
