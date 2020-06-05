@@ -74,6 +74,14 @@ public interface ContainerManager extends Closeable {
   ContainerInfo getContainer(ContainerID containerID)
       throws ContainerNotFoundException;
 
+  /**
+   * Returns a list of ContainerInfo from a list of container ID.
+   *
+   * @param containerIDs - a list of container ID .
+   * @return - a list of ContainerInfo such as creation state and the pipeline.
+   */
+  List<ContainerInfo> getContainerByBatch(List<ContainerID> containerIDs);
+
   boolean exists(ContainerID containerID);
 
   /**

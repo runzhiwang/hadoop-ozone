@@ -32,8 +32,10 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
@@ -187,6 +189,32 @@ public class ContainerStateMap {
     try {
       checkIfContainerExist(containerID);
       return containerMap.get(containerID);
+    } finally {
+      lock.readLock().unlock();
+    }
+  }
+
+   /**
+   * Returns a list of the latest state of Container from
+   * SCM's Container State Map.
+   *
+   * @param containerIDs - a list of ContainerID
+   * @return a list of container info, if found.
+   */
+  public List<ContainerInfo> getContainerInfoByBatch(
+      final List<ContainerID> containerIDs) {
+    List<ContainerInfo> containerInfos = new ArrayList<>();
+    lock.readLock().lock();
+    try {
+      for (ContainerID containerID : containerIDs) {
+        if (!containerMap.containsKey(containerID)) {
+          LOG.error("Container with id #" +
+              containerID.getId() + " not found.");
+          continue;
+        }
+        containerInfos.add(containerMap.get(containerID));
+      }
+      return containerInfos;
     } finally {
       lock.readLock().unlock();
     }

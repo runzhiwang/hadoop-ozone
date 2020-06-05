@@ -200,6 +200,15 @@ public class SCMContainerManager implements ContainerManager {
     return containerStateManager.getContainer(containerID);
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public List<ContainerInfo> getContainerByBatch(
+      final List<ContainerID> containerIDs) {
+    return containerStateManager.getContainerByBatch(containerIDs);
+  }
+
   @Override
   public boolean exists(ContainerID containerID) {
     lock.lock();

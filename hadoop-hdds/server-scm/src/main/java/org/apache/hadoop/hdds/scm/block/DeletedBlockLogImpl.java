@@ -18,11 +18,13 @@
 package org.apache.hadoop.hdds.scm.block;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -328,12 +330,34 @@ public class DeletedBlockLogImpl
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
                scmMetadataStore.getDeletedBlocksTXTable().iterator()) {
+
+        Map<Long, List<DeletedBlocksTransaction>> blocksMap = new TreeMap();
+        List<ContainerID> containerIDS = new ArrayList<>();
+
         while (iter.hasNext()) {
           Table.KeyValue<Long, DeletedBlocksTransaction> keyValue =
               iter.next();
           DeletedBlocksTransaction block = keyValue.getValue();
           if (block.getCount() > -1 && block.getCount() <= maxRetry) {
-            if (transactions.addTransaction(block,
+            long containerID = block.getContainerID();
+            containerIDS.add(ContainerID.valueof(containerID));
+            if (!blocksMap.containsKey(containerID)) {
+              blocksMap.put(containerID,
+                  new ArrayList<DeletedBlocksTransaction>());
+            }
+
+            blocksMap.get(block.getContainerID()).add(block);
+          }
+        }
+
+        List<ContainerInfo> containerInfos =
+            containerManager.getContainerByBatch(containerIDS);
+
+        for (ContainerInfo containerInfo : containerInfos) {
+          List<DeletedBlocksTransaction> blocks =
+              blocksMap.get(containerInfo.getContainerID());
+          for (DeletedBlocksTransaction block : blocks) {
+             if (transactions.addTransaction(containerInfo, block,
                 transactionToDNsCommitMap.get(block.getTxID()))) {
               deleteTransactionMap.put(block.getContainerID(),
                   block.getTxID());

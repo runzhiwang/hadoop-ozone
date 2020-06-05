@@ -55,14 +55,14 @@ public class DatanodeDeletedBlockTransactions {
     this.nodeNum = nodeNum;
   }
 
-  public boolean addTransaction(DeletedBlocksTransaction tx,
+  public boolean addTransaction(ContainerInfo container,
+      DeletedBlocksTransaction tx,
       Set<UUID> dnsWithTransactionCommitted) {
     try {
       boolean success = false;
-      final ContainerID id = ContainerID.valueof(tx.getContainerID());
-      final ContainerInfo container = containerManager.getContainer(id);
       final Set<ContainerReplica> replicas = containerManager
-          .getContainerReplicas(id);
+          .getContainerReplicas(
+              ContainerID.valueof(container.getContainerID()));
       if (!container.isOpen()) {
         for (ContainerReplica replica : replicas) {
           UUID dnID = replica.getDatanodeDetails().getUuid();
