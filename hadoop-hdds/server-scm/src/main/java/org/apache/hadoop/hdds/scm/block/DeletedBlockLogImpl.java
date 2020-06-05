@@ -357,7 +357,7 @@ public class DeletedBlockLogImpl
           List<DeletedBlocksTransaction> blocks =
               blocksMap.get(containerInfo.getContainerID());
           for (DeletedBlocksTransaction block : blocks) {
-             if (transactions.addTransaction(containerInfo, block,
+            if (transactions.addTransaction(containerInfo, block,
                 transactionToDNsCommitMap.get(block.getTxID()))) {
               deleteTransactionMap.put(block.getContainerID(),
                   block.getTxID());
