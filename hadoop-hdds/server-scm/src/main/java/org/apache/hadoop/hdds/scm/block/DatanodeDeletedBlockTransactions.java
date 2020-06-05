@@ -81,6 +81,18 @@ public class DatanodeDeletedBlockTransactions {
     }
   }
 
+  public boolean addTransaction(DeletedBlocksTransaction tx,
+      Set<UUID> dnsWithTransactionCommitted) {
+    try {
+      final ContainerID id = ContainerID.valueof(tx.getContainerID());
+      final ContainerInfo container = containerManager.getContainer(id);
+      return addTransaction(container, tx, dnsWithTransactionCommitted);
+    } catch (IOException e) {
+      SCMBlockDeletingService.LOG.warn("Got container info error.", e);
+      return false;
+    }
+  }
+
   private boolean addTransactionToDN(UUID dnID, DeletedBlocksTransaction tx) {
     if (transactions.containsKey(dnID)) {
       List<DeletedBlocksTransaction> txs = transactions.get(dnID);
