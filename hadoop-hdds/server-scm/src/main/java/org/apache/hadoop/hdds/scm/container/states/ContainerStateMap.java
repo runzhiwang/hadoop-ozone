@@ -32,8 +32,10 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
@@ -183,10 +185,35 @@ public class ContainerStateMap {
    */
   public ContainerInfo getContainerInfo(final ContainerID containerID)
       throws ContainerNotFoundException {
+    ContainerInfo info = containerMap.get(containerID);
+    if (info == null) {
+      throw new ContainerNotFoundException("Container with id #" +
+          containerID.getId() + " not found.");
+    }
+    return info;
+  }
+
+   /**
+   * Returns a list of the latest state of Container from
+   * SCM's Container State Map.
+   *
+   * @param containerIDs - a list of ContainerID
+   * @return a list of container info, if found.
+   */
+  public List<ContainerInfo> getContainerInfoByBatch(
+      final List<ContainerID> containerIDs) {
+    List<ContainerInfo> containerInfos = new ArrayList<>();
     lock.readLock().lock();
     try {
-      checkIfContainerExist(containerID);
-      return containerMap.get(containerID);
+      for (ContainerID containerID : containerIDs) {
+        if (!containerMap.containsKey(containerID)) {
+          LOG.error("Container with id #" +
+              containerID.getId() + " not found.");
+          continue;
+        }
+        containerInfos.add(containerMap.get(containerID));
+      }
+      return containerInfos;
     } finally {
       lock.readLock().unlock();
     }
@@ -202,14 +229,12 @@ public class ContainerStateMap {
   public Set<ContainerReplica> getContainerReplicas(
       final ContainerID containerID) throws ContainerNotFoundException {
     Preconditions.checkNotNull(containerID);
-    lock.readLock().lock();
-    try {
-      checkIfContainerExist(containerID);
-      return Collections
-          .unmodifiableSet(replicaMap.get(containerID));
-    } finally {
-      lock.readLock().unlock();
+    Set<ContainerReplica> set = replicaMap.get(containerID);
+    if (set == null) {
+      throw new ContainerNotFoundException("Container with id #" +
+          containerID.getId() + " not found.");
     }
+    return set;
   }
 
   /**

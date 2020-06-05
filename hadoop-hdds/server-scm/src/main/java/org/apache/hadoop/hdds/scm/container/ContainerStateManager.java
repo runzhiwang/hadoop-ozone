@@ -495,6 +495,16 @@ public class ContainerStateManager {
     return containers.getContainerInfo(containerID);
   }
 
+  /**
+   * Returns a list of containerInfo for a list of container id.
+   * @param containerIDs a list id of the containers
+   * @return a list of containerInfo
+   */
+  List<ContainerInfo> getContainerByBatch(
+      final List<ContainerID> containerIDs) {
+    return containers.getContainerInfoByBatch(containerIDs);
+  }
+
   void close() throws IOException {
   }
 
