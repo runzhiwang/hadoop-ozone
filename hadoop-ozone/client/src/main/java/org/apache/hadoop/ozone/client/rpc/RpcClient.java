@@ -91,7 +91,6 @@ import org.apache.hadoop.ozone.om.helpers.OzoneFileStatus;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.S3SecretValue;
 import org.apache.hadoop.ozone.om.helpers.ServiceInfo;
-import org.apache.hadoop.ozone.om.helpers.ServiceInfoEx;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.om.protocolPB.OmTransport;
 import org.apache.hadoop.ozone.om.protocolPB.OmTransportFactory;
@@ -170,10 +169,10 @@ public class RpcClient implements ClientProtocol {
         OzoneManagerProtocol.class, conf
     );
     dtService = omTransport.getDelegationTokenService();
-    ServiceInfoEx serviceInfoEx = ozoneManagerClient.getServiceInfo();
+    String certificate = ozoneManagerClient.getCaCertificate();
     String caCertPem = null;
     if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
-      caCertPem = serviceInfoEx.getCaCertificate();
+      caCertPem = certificate;
     }
 
     this.xceiverClientManager = new XceiverClientManager(conf,

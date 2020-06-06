@@ -290,6 +290,14 @@ public interface OzoneManagerProtocol
 
   ServiceInfoEx getServiceInfo() throws IOException;
 
+  /**
+   * Returns PEM encoded string of SCM CA certificate.
+   *
+   * @return PEM encoded string of SCM CA certificate
+   * @throws IOException
+   */
+  String getCaCertificate() throws IOException;
+
   /*
    * S3 Specific functionality that is supported by Ozone Manager.
    */

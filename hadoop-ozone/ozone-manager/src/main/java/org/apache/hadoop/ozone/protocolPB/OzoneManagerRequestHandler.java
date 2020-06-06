@@ -50,6 +50,8 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Allocat
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.AllocateBlockResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CheckVolumeAccessRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CheckVolumeAccessResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetCaCertificateRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetCaCertificateResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetFileStatusRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetFileStatusResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.InfoBucketRequest;
@@ -176,6 +178,11 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         ServiceListResponse serviceListResponse = getServiceList(
             request.getServiceListRequest());
         responseBuilder.setServiceListResponse(serviceListResponse);
+        break;
+      case GetCaCertificate:
+        GetCaCertificateResponse certificate = getCaCertificate(
+            request.getGetCaCertificateRequest());
+        responseBuilder.setGetCaCertificateResponse(certificate);
         break;
       case DBUpdates:
         DBUpdatesResponse dbUpdatesResponse = getOMDBUpdates(
@@ -460,6 +467,17 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     resp.addAllServiceInfo(serviceInfoProtos);
     if (serviceInfoEx.getCaCertificate() != null) {
       resp.setCaCertificate(serviceInfoEx.getCaCertificate());
+    }
+    return resp.build();
+  }
+
+  private GetCaCertificateResponse getCaCertificate(
+      GetCaCertificateRequest request) {
+    GetCaCertificateResponse.Builder resp =
+        GetCaCertificateResponse.newBuilder();
+    String certificate = impl.getCaCertificate();
+    if (certificate != null) {
+      resp.setCaCertificate(certificate);
     }
     return resp.build();
   }

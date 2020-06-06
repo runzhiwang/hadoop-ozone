@@ -2540,6 +2540,11 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   }
 
   @Override
+  public String getCaCertificate() {
+    return caCertPem;
+  }
+
+  @Override
   /**
    * {@inheritDoc}
    */

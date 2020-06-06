@@ -237,6 +237,7 @@ public final class OmUtils {
     case GetAcl:
     case DBUpdates:
     case ListMultipartUploads:
+    case GetCaCertificate:
       return true;
     case CreateVolume:
     case SetVolumeProperty:

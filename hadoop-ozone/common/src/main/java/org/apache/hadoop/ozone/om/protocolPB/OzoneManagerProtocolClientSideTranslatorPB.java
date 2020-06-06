@@ -75,6 +75,8 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteK
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteVolumeRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetAclRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetAclResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetCaCertificateRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetCaCertificateResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetDelegationTokenResponseProto;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetFileStatusRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetFileStatusResponse;
@@ -1008,6 +1010,20 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
             .map(ServiceInfo::getFromProtobuf)
             .collect(Collectors.toList()),
         resp.getCaCertificate());
+  }
+
+  @Override
+  public String getCaCertificate() throws IOException {
+    GetCaCertificateRequest req = GetCaCertificateRequest.newBuilder().build();
+
+    OMRequest omRequest = createOMRequest(Type.GetCaCertificate)
+        .setGetCaCertificateRequest(req)
+        .build();
+
+    final GetCaCertificateResponse resp = handleError(submitRequest(omRequest))
+        .getGetCaCertificateResponse();
+
+    return resp.getCaCertificate();
   }
 
   /**

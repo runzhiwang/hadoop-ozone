@@ -90,6 +90,8 @@ enum Type {
 
   ListTrash = 91;
   RecoverTrash = 92;
+
+  GetCaCertificate = 93;
 }
 
 message OMRequest {
@@ -158,6 +160,8 @@ message OMRequest {
 
   optional ListTrashRequest                 listTrashRequest               = 91;
   optional RecoverTrashRequest              RecoverTrashRequest            = 92;
+
+  optional GetCaCertificateRequest          getCaCertificateRequest        = 93;
 }
 
 message OMResponse {
@@ -226,6 +230,8 @@ message OMResponse {
 
   optional ListTrashResponse                  listTrashResponse            = 91;
   optional RecoverTrashResponse               RecoverTrashResponse         = 92;
+
+  optional GetCaCertificateResponse           getCaCertificateResponse     = 93;
 }
 
 enum Status {
@@ -932,6 +938,9 @@ message AllocateBlockResponse {
 message ServiceListRequest {
 }
 
+message GetCaCertificateRequest {
+}
+
 message DBUpdatesRequest {
     required uint64 sequenceNumber = 1;
 }
@@ -942,6 +951,12 @@ message ServiceListResponse {
     // When security is enabled, return SCM CA certificate to Ozone client
     // to set up gRPC TLS for client to authenticate server(DN).
     optional string caCertificate = 3;
+}
+
+message GetCaCertificateResponse {
+    // When security is enabled, return SCM CA certificate to Ozone client
+    // to set up gRPC TLS for client to authenticate server(DN).
+    optional string caCertificate = 1;
 }
 
 message DBUpdatesResponse {
