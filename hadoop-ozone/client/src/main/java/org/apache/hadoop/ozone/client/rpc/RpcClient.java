@@ -169,10 +169,10 @@ public class RpcClient implements ClientProtocol {
         OzoneManagerProtocol.class, conf
     );
     dtService = omTransport.getDelegationTokenService();
-    String certificate = ozoneManagerClient.getCaCertificate();
+
     String caCertPem = null;
     if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
-      caCertPem = certificate;
+      caCertPem = ozoneManagerClient.getCaCertificate();
     }
 
     this.xceiverClientManager = new XceiverClientManager(conf,

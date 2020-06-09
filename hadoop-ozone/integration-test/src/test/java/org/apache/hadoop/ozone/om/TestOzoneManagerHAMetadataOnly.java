@@ -259,7 +259,17 @@ public class TestOzoneManagerHAMetadataOnly extends TestOzoneManagerHA {
     } catch (ConnectException e) {
       Assert.assertEquals(1,
           appender.countLinesWithMessage("Failed to connect to OMs:"));
-      Assert.assertEquals(maxFailoverAttempts,
+
+      // "Trying to failover" log at https://github.com/apache/hadoop/blob
+      // /trunk/hadoop-common-project/hadoop-common/src/main/java/org/apache
+      // /hadoop/io/retry/RetryInvocationHandler.java#L407
+      // But if it is the first failover, i.e.failovers == 0, and before that
+      // no other call succeed, i.e. hasSuccessfulCall == true, it will not log
+      // "Trying to failover", and return at https://github.com/apache/hadoop
+      // /blob/trunk/hadoop-common-project/hadoop-common/src/main/java/org
+      // /apache/hadoop/io/retry/RetryInvocationHandler.java#L398
+
+      Assert.assertEquals(maxFailoverAttempts - 1,
           appender.countLinesWithMessage("Trying to failover"));
       Assert.assertEquals(1,
           appender.countLinesWithMessage("Attempted " +
