@@ -28,6 +28,7 @@ import org.apache.ratis.thirdparty.com.google.common.annotations.
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.jvm.hotspot.utilities.Assert;
 
 import javax.management.ObjectName;
 import java.io.File;
@@ -150,6 +151,7 @@ public class RocksDBStore implements MetadataStore {
   public void put(String category, byte[] key, byte[] value)
       throws IOException {
     try {
+      Assert.that(key.length > 8, " key length not greater than 8");
       db.put(getColumnFamilyHandle(category), writeOptions, key, value);
     } catch (RocksDBException e) {
       throw toIOException("Failed to put key-value to metadata store", e);
@@ -159,6 +161,7 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public void put(byte[] category, byte[] key, byte[] value)
       throws IOException {
+    Assert.that(key.length > 8, " key length not greater than 8");
     put(HddsServerUtil.getStringFromBytes(category), key, value);
   }
 
@@ -194,6 +197,7 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public byte[] get(String category, byte[] key) throws IOException {
     try {
+      Assert.that(key.length > 8, " key length not greater than 8");
       return db.get(getColumnFamilyHandle(category), key);
     } catch (RocksDBException e) {
       throw toIOException("Failed to get the value for the given key", e);
@@ -202,6 +206,7 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public byte[] get(byte[] category, byte[] key) throws IOException {
+    Assert.that(key.length > 8, " key length not greater than 8");
     return get(HddsServerUtil.getStringFromBytes(category), key);
   }
 
@@ -213,6 +218,7 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public void delete(String category, byte[] key) throws IOException {
     try {
+      Assert.that(key.length > 8, " key length not greater than 8");
       db.delete(getColumnFamilyHandle(category), key);
     } catch (RocksDBException e) {
       throw toIOException("Failed to delete the given key", e);
@@ -221,6 +227,7 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public void delete(byte[] category, byte[] key) throws IOException {
+    Assert.that(key.length > 8, " key length not greater than 8");
     delete(HddsServerUtil.getStringFromBytes(category), key);
   }
 
@@ -364,10 +371,14 @@ public class RocksDBStore implements MetadataStore {
         for (BatchOperation.SingleOperation opt : operations) {
           switch (opt.getOpt()) {
           case DELETE:
+            Assert.that(opt.getKey().length > 8,
+                " key length not greater than 8");
             writeBatch.delete(
                 getColumnFamilyHandle(opt.getCategory()), opt.getKey());
             break;
           case PUT:
+            Assert.that(opt.getKey().length > 8,
+                " key length not greater than 8");
             writeBatch.put(getColumnFamilyHandle(opt.getCategory()),
                 opt.getKey(), opt.getValue());
             break;
