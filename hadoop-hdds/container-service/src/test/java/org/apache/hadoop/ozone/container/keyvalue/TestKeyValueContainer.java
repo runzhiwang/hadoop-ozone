@@ -32,6 +32,7 @@ import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume
     .RoundRobinVolumeChoosingPolicy;
@@ -222,9 +223,13 @@ public class TestKeyValueContainer {
 
       // As now when we put blocks, we increment block count and update in DB.
       // As for test, we are doing manually so adding key count to DB.
+      byte[] blockCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.BLOCK_COUNT)
+          .setContainerID(containerId)
+          .build().getDBByteKey();
       metadataStore.getStore().put(
           RocksDB.DEFAULT_COLUMN_FAMILY,
-          OzoneConsts.DB_BLOCK_COUNT_KEY,
+          blockCountKey,
           Longs.toByteArray(numberOfKeysToWrite));
     }
     BlockUtils.removeDB(keyValueContainerData, conf);

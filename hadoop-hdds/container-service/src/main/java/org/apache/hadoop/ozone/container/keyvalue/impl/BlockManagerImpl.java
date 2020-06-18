@@ -48,7 +48,6 @@ import java.util.Map;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.NO_SUCH_BLOCK;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNKNOWN_BCSID;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.BCSID_MISMATCH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 
 /**
  * This class is for performing block related operations on the KeyValue
@@ -143,8 +142,12 @@ public class BlockManagerImpl implements BlockManager {
           Longs.toByteArray(container.getContainerData().getBytesUsed()));
 
       // Set Block Count for a container.
+      byte[] blockCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.BLOCK_COUNT)
+          .setContainerID(container.getContainerData().getContainerID())
+          .build().getDBByteKey();
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-          DB_BLOCK_COUNT_KEY,
+          blockCountKey,
           Longs.toByteArray(container.getContainerData().getKeyCount() + 1));
 
       db.getStore().writeBatch(batch);
@@ -264,7 +267,11 @@ public class BlockManagerImpl implements BlockManager {
       // Update DB to delete block and set block count.
       // No need to set bytes used here, as bytes used is taken care during
       // delete chunk.
-      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY, DB_BLOCK_COUNT_KEY,
+      byte[] blockCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.BLOCK_COUNT)
+          .setContainerID(container.getContainerData().getContainerID())
+          .build().getDBByteKey();
+      batch.put(RocksDB.DEFAULT_COLUMN_FAMILY, blockCountKey,
           Longs.toByteArray(container.getContainerData().getKeyCount() - 1));
       db.getStore().writeBatch(batch);
 

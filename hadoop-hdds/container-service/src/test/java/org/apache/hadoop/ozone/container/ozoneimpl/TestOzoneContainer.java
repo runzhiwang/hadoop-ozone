@@ -288,9 +288,13 @@ public class TestOzoneContainer {
     }
 
     // Set Block count and used bytes.
+    byte[] blockCountKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.BLOCK_COUNT)
+        .setContainerID(containerId)
+        .build().getDBByteKey();
     db.getStore().put(
         RocksDB.DEFAULT_COLUMN_FAMILY,
-        OzoneConsts.DB_BLOCK_COUNT_KEY,
+        blockCountKey,
         Longs.toByteArray(blocks));
     byte[] containerBytesUsedKey = DBKey.newBuilder()
         .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)

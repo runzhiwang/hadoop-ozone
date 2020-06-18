@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.Math.max;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE_ROCKSDB;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
 import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
@@ -277,8 +276,13 @@ public class KeyValueContainerData extends ContainerData {
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
         containerBytesUsedKey,
         Longs.toByteArray(getBytesUsed()));
+
+    byte[] blockCountKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.BLOCK_COUNT)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-        DB_BLOCK_COUNT_KEY,
+        blockCountKey,
         Longs.toByteArray(getKeyCount() - deletedBlockCount));
 
     byte[] pendingDeleteCountKey = DBKey.newBuilder()
