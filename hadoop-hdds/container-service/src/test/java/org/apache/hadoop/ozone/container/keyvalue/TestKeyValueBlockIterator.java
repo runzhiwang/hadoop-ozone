@@ -272,9 +272,13 @@ public class TestKeyValueBlockIterator {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
+        byte[] blockKey = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(containerId)
+            .setBlockLocalID(blockID.getLocalID())
+            .build().getDBByteKey();
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            Longs.toByteArray(blockID.getLocalID()),
+            blockKey,
             blockData.getProtoBufMessage().toByteArray());
       }
 

@@ -275,9 +275,13 @@ import static org.junit.Assert.assertFalse;
               blockData.getProtoBufMessage().toByteArray());
         } else {
           // normal key
+          byte[] blockKey = DBKey.newBuilder()
+              .setPrefix(null).setContainerID(containerId)
+              .setBlockLocalID(blockID.getLocalID())
+              .build().getDBByteKey();
           metadataStore.getStore().put(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              Longs.toByteArray(blockID.getLocalID()),
+              blockKey,
               blockData.getProtoBufMessage().toByteArray());
         }
       }

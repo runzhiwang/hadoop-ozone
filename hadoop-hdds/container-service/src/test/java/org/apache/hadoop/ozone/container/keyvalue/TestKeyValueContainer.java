@@ -167,9 +167,13 @@ public class TestKeyValueContainer {
             .getLocalID(), 0), 0, 1024);
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
+        byte[] blockKey = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(containerId)
+            .setBlockLocalID(blockID.getLocalID())
+            .build().getDBByteKey();
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            Longs.toByteArray(blockID.getLocalID()),
+            blockKey,
             blockData.getProtoBufMessage().toByteArray());
       }
     }

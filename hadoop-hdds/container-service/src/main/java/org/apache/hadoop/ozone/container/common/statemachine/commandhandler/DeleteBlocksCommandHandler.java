@@ -210,7 +210,9 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             BlockUtils.getDB(containerData, conf)) {
       for (Long blk : delTX.getLocalIDList()) {
         BatchOperation batch = new BatchOperation();
-        byte[] blkBytes = Longs.toByteArray(blk);
+        byte[] blkBytes = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(containerId).setBlockLocalID(blk)
+            .build().getDBByteKey();
         byte[] blkInfo = containerDB.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blkBytes);
