@@ -48,6 +48,8 @@ import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDeletionChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
+import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -265,7 +267,7 @@ public class BlockDeletingService extends BackgroundService {
               containerData.getContainerID());
         }
 
-        List<String> succeedBlocks = new LinkedList<>();
+        List<DBKey> succeedBlocks = new LinkedList<>();
         LOG.debug("Container : {}, To-Delete blocks : {}",
             containerData.getContainerID(), toDeleteBlocks.size());
         File dataDir = new File(containerData.getChunksPath());
@@ -279,17 +281,18 @@ public class BlockDeletingService extends BackgroundService {
             .getHandler(container.getContainerType()));
 
         toDeleteBlocks.forEach(entry -> {
-          String blockName = StringUtils.bytes2String(entry.getKey());
-          LOG.debug("Deleting block {}", blockName);
+          DBKey key = DBByteKeyUtil.getDBKey(entry.getKey(),
+              OzoneConsts.DELETING_KEY_PREFIX);
+          LOG.debug("Deleting block {}", key);
           try {
             ContainerProtos.BlockData data =
                 ContainerProtos.BlockData.parseFrom(entry.getValue());
             handler.deleteBlock(container, BlockData.getFromProtoBuf(data));
-            succeedBlocks.add(blockName);
+            succeedBlocks.add(key);
           } catch (InvalidProtocolBufferException e) {
-            LOG.error("Failed to parse block info for block {}", blockName, e);
+            LOG.error("Failed to parse block info for block {}", key, e);
           } catch (IOException e) {
-            LOG.error("Failed to delete files for block {}", blockName, e);
+            LOG.error("Failed to delete files for block {}", key, e);
           }
         });
 
@@ -297,14 +300,12 @@ public class BlockDeletingService extends BackgroundService {
         // entries
         BatchOperation batch = new BatchOperation();
         succeedBlocks.forEach(entry -> {
-          String blockId =
-              entry.substring(OzoneConsts.DELETING_KEY_PREFIX.length());
-          String deletedEntry = OzoneConsts.DELETED_KEY_PREFIX + blockId;
+          String deletedEntry = OzoneConsts.DELETED_KEY_PREFIX + entry.getBlockLocalID();
           batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
               StringUtils.string2Bytes(deletedEntry),
-              StringUtils.string2Bytes(blockId));
+              StringUtils.string2Bytes(String.valueOf(entry.getBlockLocalID())));
           batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY,
-              StringUtils.string2Bytes(entry));
+              DBByteKeyUtil.getDBByteKey(entry));
         });
 
 
@@ -321,7 +322,9 @@ public class BlockDeletingService extends BackgroundService {
               containerData.getContainerID(), succeedBlocks.size(),
               Time.monotonicNow() - startTime);
         }
-        crr.addAll(succeedBlocks);
+        for (DBKey key : succeedBlocks) {
+          crr.addBlockId(String.valueOf(key.getBlockLocalID()));
+        }
         return crr;
       } finally {
         container.writeUnlock();

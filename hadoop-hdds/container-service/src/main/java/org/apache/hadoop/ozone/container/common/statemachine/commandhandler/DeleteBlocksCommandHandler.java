@@ -35,6 +35,8 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers
     .DeletedContainerBlocksSummary;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
+import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
@@ -217,8 +219,12 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blkBytes);
         if (blkInfo != null) {
-          byte[] deletingKeyBytes =
-              StringUtils.string2Bytes(OzoneConsts.DELETING_KEY_PREFIX + blk);
+          DBKey deletingKey = DBKey.newBuilder()
+              .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+              .setContainerID(containerId)
+              .setBlockLocalID(blk)
+              .build();
+          byte[] deletingKeyBytes = DBByteKeyUtil.getDBByteKey(deletingKey);
           byte[] deletedKeyBytes =
             StringUtils.string2Bytes(OzoneConsts.DELETED_KEY_PREFIX + blk);
           if (containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes) != null
