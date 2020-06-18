@@ -225,8 +225,14 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
               .setBlockLocalID(blk)
               .build();
           byte[] deletingKeyBytes = DBByteKeyUtil.getDBByteKey(deletingKey);
+
+          DBKey deletedKey = DBKey.newBuilder()
+              .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+              .setContainerID(containerId)
+              .setBlockLocalID(blk)
+              .build();
           byte[] deletedKeyBytes =
-              DFSUtil.string2Bytes(OzoneConsts.DELETED_KEY_PREFIX + blk);
+              DBByteKeyUtil.getDBByteKey(deletedKey);
           if (containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes) != null
               || containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletedKeyBytes) != null) {
             if (LOG.isDebugEnabled()) {

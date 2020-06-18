@@ -300,9 +300,13 @@ public class BlockDeletingService extends BackgroundService {
         // entries
         BatchOperation batch = new BatchOperation();
         succeedBlocks.forEach(entry -> {
-          String deletedEntry = OzoneConsts.DELETED_KEY_PREFIX + entry.getBlockLocalID();
+          DBKey deletedEntry = DBKey.newBuilder()
+              .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+              .setContainerID(entry.getContainerID())
+              .setBlockLocalID(entry.getBlockLocalID())
+              .build();
           batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-              DFSUtil.string2Bytes(deletedEntry),
+              DBByteKeyUtil.getDBByteKey(deletedEntry),
               DFSUtil.string2Bytes(String.valueOf(entry.getBlockLocalID())));
           batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY,
               DBByteKeyUtil.getDBByteKey(entry));

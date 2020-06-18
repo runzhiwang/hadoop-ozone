@@ -354,8 +354,12 @@ public class TestBlockDeletion {
         Assert.assertNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             DBByteKeyUtil.getDBByteKey(deletingKey)));
-        Assert.assertNotNull(DFSUtil.string2Bytes(
-            OzoneConsts.DELETED_KEY_PREFIX + blockID.getLocalID()));
+        DBKey deletedKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+            .setContainerID(blockID.getContainerID())
+            .setBlockLocalID(blockID.getLocalID())
+            .build();
+        Assert.assertNotNull(DBByteKeyUtil.getDBByteKey(deletedKey));
       }
       containerIdsWithDeletedBlocks.add(blockID.getContainerID());
     }, omKeyLocationInfoGroups);
