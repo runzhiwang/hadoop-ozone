@@ -45,8 +45,6 @@ import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-
 /**
  * Class which defines utility methods for KeyValueContainer.
  */
@@ -233,9 +231,13 @@ public final class KeyValueContainerUtil {
       }
 
       // Set block count.
+      byte[] blockCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.BLOCK_COUNT)
+          .setContainerID(containerID)
+          .build().getDBByteKey();
       byte[] blockCount = containerDB.getStore().get(
           RocksDB.DEFAULT_COLUMN_FAMILY,
-          DB_BLOCK_COUNT_KEY);
+          blockCountKey);
       if (blockCount != null) {
         isBlockMetadataSet = true;
         kvContainerData.setKeyCount(Longs.fromByteArray(blockCount));

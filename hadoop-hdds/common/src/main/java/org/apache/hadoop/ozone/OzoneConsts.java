@@ -147,13 +147,6 @@ public final class OzoneConsts {
       "#PENDINGDELETEBLOCKCOUNT";
 
 
-  public static final byte[] DB_BLOCK_COUNT_KEY =
-      DFSUtil.string2Bytes(OzoneConsts.BLOCK_COUNT);
-  public static final byte[] DB_CONTAINER_BYTES_USED_KEY =
-      DFSUtil.string2Bytes(OzoneConsts.CONTAINER_BYTES_USED);
-
-
-
   /**
    * OM LevelDB prefixes.
    *
