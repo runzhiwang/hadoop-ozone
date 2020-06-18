@@ -132,7 +132,8 @@ public class DBKey {
     }
 
     public Builder setBytes(byte[] bytes) {
-      this.bytes = bytes;
+      this.bytes = new byte[bytes.length];
+      System.arraycopy(bytes, 0, this.bytes, 0, bytes.length);
       return this;
     }
 
