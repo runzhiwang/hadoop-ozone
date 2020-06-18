@@ -332,7 +332,7 @@ public class TestBlockDeletion {
             .build().getDBByteKey();
         Assert.assertNotNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            key);
+            key));
       }
     }, omKeyLocationInfoGroups);
   }
