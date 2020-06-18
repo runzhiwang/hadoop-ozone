@@ -45,7 +45,6 @@ import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COMMIT_SEQUENCE_ID_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
@@ -202,10 +201,15 @@ public final class KeyValueContainerUtil {
             .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));
       }
 
+      byte[] seqIdKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX)
+          .setContainerID(containerID)
+          .build().getDBByteKey();
+
       // Set BlockCommitSequenceId.
       byte[] bcsId = containerDB.getStore().get(
           RocksDB.DEFAULT_COLUMN_FAMILY,
-          DB_BLOCK_COMMIT_SEQUENCE_ID_KEY);
+          seqIdKey);
       if (bcsId != null) {
         kvContainerData
             .updateBlockCommitSequenceId(Longs.fromByteArray(bcsId));
