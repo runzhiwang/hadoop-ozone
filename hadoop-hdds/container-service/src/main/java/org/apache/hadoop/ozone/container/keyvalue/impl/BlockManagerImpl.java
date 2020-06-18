@@ -25,7 +25,9 @@ import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
@@ -46,7 +48,6 @@ import java.util.Map;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.NO_SUCH_BLOCK;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNKNOWN_BCSID;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.BCSID_MISMATCH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COMMIT_SEQUENCE_ID_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 
@@ -119,8 +120,13 @@ public class BlockManagerImpl implements BlockManager {
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
           Longs.toByteArray(data.getLocalID()),
           data.getProtoBufMessage().toByteArray());
+
+      byte[] seqIdKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX)
+          .setContainerID(container.getContainerData().getContainerID())
+          .build().getDBByteKey();
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-          DB_BLOCK_COMMIT_SEQUENCE_ID_KEY,
+          seqIdKey,
           Longs.toByteArray(bcsId));
 
       // Set Bytes used, this bytes used will be updated for every write and
