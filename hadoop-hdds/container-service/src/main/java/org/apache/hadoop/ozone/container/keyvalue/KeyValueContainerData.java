@@ -29,8 +29,10 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .ContainerDataProto;
 import org.apache.hadoop.hdds.utils.BatchOperation;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.rocksdb.RocksDB;
 import org.yaml.snakeyaml.nodes.Tag;
@@ -47,7 +49,6 @@ import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
 import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 
 /**
  * This class represents the KeyValueContainer metadata, which is the
@@ -259,12 +260,13 @@ public class KeyValueContainerData extends ContainerData {
 
   /**
    * Update DB counters related to block metadata.
+   * @param containerID - container id
    * @param db - Reference to container DB.
    * @param batchOperation - Batch Operation to batch DB operations.
    * @param deletedBlockCount - Number of blocks deleted.
    * @throws IOException
    */
-  public void updateAndCommitDBCounters(
+  public void updateAndCommitDBCounters(long containerID,
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
@@ -274,8 +276,13 @@ public class KeyValueContainerData extends ContainerData {
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
         DB_BLOCK_COUNT_KEY,
         Longs.toByteArray(getKeyCount() - deletedBlockCount));
+
+    byte[] pendingDeleteCountKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-        DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        pendingDeleteCountKey,
         Longs.toByteArray(getNumPendingDeletionBlocks() - deletedBlockCount));
     db.getStore().writeBatch(batchOperation);
   }

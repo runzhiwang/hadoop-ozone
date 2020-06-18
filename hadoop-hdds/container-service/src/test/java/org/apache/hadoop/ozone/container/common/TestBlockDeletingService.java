@@ -77,7 +77,6 @@ import org.rocksdb.RocksDB;
 
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -189,9 +188,13 @@ public class TestBlockDeletingService {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
+        byte[] pendingDeleteCountKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+            .setContainerID(containerID)
+            .build().getDBByteKey();
         metadata.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+            pendingDeleteCountKey,
             Ints.toByteArray(numOfBlocksPerContainer));
       }
     }
@@ -287,10 +290,14 @@ public class TestBlockDeletingService {
 
       // Check finally DB counters.
       // Not checking bytes used, as handler is a mock call.
+      byte[] pendingDeleteCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+          .setContainerID(containerData.get(0).getContainerID())
+          .build().getDBByteKey();
       Assert.assertEquals(0, Ints.fromByteArray(
           meta.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
+              pendingDeleteCountKey)));
       Assert.assertEquals(0, Longs.fromByteArray(
           meta.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,

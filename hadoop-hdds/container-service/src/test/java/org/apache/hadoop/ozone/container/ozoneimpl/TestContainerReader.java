@@ -53,7 +53,6 @@ import java.util.UUID;
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -125,14 +124,14 @@ public class TestContainerReader {
       boolean setMetaData, List<Long> blockNames, int count) throws Exception {
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
         .getContainerData(), conf)) {
+      long containerID = keyValueContainer.getContainerData()
+          .getContainerID();
 
       for (int i = 0; i < count; i++) {
         byte[] blkBytes = Longs.toByteArray(blockNames.get(i));
         byte[] blkInfo = metadataStore.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
 
-        long containerID = keyValueContainer.getContainerData()
-            .getContainerID();
         byte[] deletingKeyBytes = DBKey.newBuilder()
             .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
             .setContainerID(containerID)
@@ -146,9 +145,13 @@ public class TestContainerReader {
       }
 
       if (setMetaData) {
+        byte[] pendingDeleteCountKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+            .setContainerID(containerID)
+            .build().getDBByteKey();
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+            pendingDeleteCountKey,
             Longs.toByteArray(count));
         long blkCount = Longs.fromByteArray(
             metadataStore.getStore().get(

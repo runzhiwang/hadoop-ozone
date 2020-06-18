@@ -151,8 +151,6 @@ public final class OzoneConsts {
       DFSUtil.string2Bytes(OzoneConsts.BLOCK_COUNT);
   public static final byte[] DB_CONTAINER_BYTES_USED_KEY =
       DFSUtil.string2Bytes(OzoneConsts.CONTAINER_BYTES_USED);
-  public static final byte[] DB_PENDING_DELETE_BLOCK_COUNT_KEY =
-      DFSUtil.string2Bytes(PENDING_DELETE_BLOCK_COUNT);
 
 
 
