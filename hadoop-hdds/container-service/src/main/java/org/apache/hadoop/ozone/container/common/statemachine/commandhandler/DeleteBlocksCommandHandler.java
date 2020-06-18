@@ -60,7 +60,6 @@ import java.util.function.Consumer;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .Result.CONTAINER_NOT_FOUND;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 
 /**
  * Handle block deletion commands.
@@ -280,8 +279,12 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             dbKey, Longs.toByteArray(delTX.getTxID()));
       }
 
+      byte[] pendingDeleteCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+          .setContainerID(containerId)
+          .build().getDBByteKey();
       batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-          DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+          pendingDeleteCountKey,
           Longs.toByteArray(
               containerData.getNumPendingDeletionBlocks() +
                     newDeletionBlocks));

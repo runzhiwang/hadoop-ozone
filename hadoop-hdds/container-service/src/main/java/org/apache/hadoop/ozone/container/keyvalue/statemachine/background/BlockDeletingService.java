@@ -315,7 +315,8 @@ public class BlockDeletingService extends BackgroundService {
 
 
         int deleteBlockCount = succeedBlocks.size();
-        containerData.updateAndCommitDBCounters(meta, batch, deleteBlockCount);
+        containerData.updateAndCommitDBCounters(containerData.getContainerID(),
+            meta, batch, deleteBlockCount);
 
         // update count of pending deletion blocks and block count in in-memory
         // container status.

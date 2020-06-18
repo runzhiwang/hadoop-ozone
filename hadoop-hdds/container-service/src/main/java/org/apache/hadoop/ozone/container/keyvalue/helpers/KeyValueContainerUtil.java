@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 
 /**
  * Class which defines utility methods for KeyValueContainer.
@@ -166,10 +165,14 @@ public final class KeyValueContainerUtil {
         config)) {
 
       // Set pending deleted block count.
+      byte[] pendingDeleteCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+          .setContainerID(containerID)
+          .build().getDBByteKey();
       byte[] pendingDeleteBlockCount =
           containerDB.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              DB_PENDING_DELETE_BLOCK_COUNT_KEY);
+              pendingDeleteCountKey);
       if (pendingDeleteBlockCount != null) {
         kvContainerData.incrPendingDeletionBlocks(
             Longs.fromByteArray(pendingDeleteBlockCount));

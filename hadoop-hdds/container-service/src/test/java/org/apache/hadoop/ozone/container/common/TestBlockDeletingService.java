@@ -78,7 +78,6 @@ import org.rocksdb.RocksDB;
 
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -190,9 +189,13 @@ public class TestBlockDeletingService {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
+        byte[] pendingDeleteCountKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+            .setContainerID(containerID)
+            .build().getDBByteKey();
         metadata.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+            pendingDeleteCountKey,
             Longs.toByteArray(numOfBlocksPerContainer));
       }
     }
@@ -270,9 +273,14 @@ public class TestBlockDeletingService {
 
       // Ensure there are 3 blocks under deletion and 0 deleted blocks
       Assert.assertEquals(3, getUnderDeletionBlocksCount(meta));
+      byte[] pendingDeleteCountKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+          .setContainerID(containerData.get(0).getContainerID())
+          .build().getDBByteKey();
       Assert.assertEquals(3, Longs.fromByteArray(
-          meta.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY,
-              DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
+          meta.getStore().get(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              pendingDeleteCountKey)));
       Assert.assertEquals(0, getDeletedBlocksCount(meta));
 
       // An interval will delete 1 * 2 blocks
@@ -294,7 +302,7 @@ public class TestBlockDeletingService {
       Assert.assertEquals(0, Longs.fromByteArray(
           meta.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
+              pendingDeleteCountKey)));
       Assert.assertEquals(0, Longs.fromByteArray(
           meta.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
