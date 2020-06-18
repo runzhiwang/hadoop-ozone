@@ -47,7 +47,6 @@ import static java.lang.Math.max;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE_ROCKSDB;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
 import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
 
@@ -271,8 +270,12 @@ public class KeyValueContainerData extends ContainerData {
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
+    byte[] containerBytesUsedKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-        DB_CONTAINER_BYTES_USED_KEY,
+        containerBytesUsedKey,
         Longs.toByteArray(getBytesUsed()));
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
         DB_BLOCK_COUNT_KEY,

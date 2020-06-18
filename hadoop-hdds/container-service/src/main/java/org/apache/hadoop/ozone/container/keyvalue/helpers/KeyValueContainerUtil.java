@@ -45,7 +45,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 
 /**
  * Class which defines utility methods for KeyValueContainer.
@@ -219,10 +218,14 @@ public final class KeyValueContainerUtil {
 
       // Set bytes used.
       // commitSpace for Open Containers relies on usedBytes
+      byte[] containerBytesUsedKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+          .setContainerID(containerID)
+          .build().getDBByteKey();
       byte[] bytesUsed =
           containerDB.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              DB_CONTAINER_BYTES_USED_KEY);
+              containerBytesUsedKey);
       if (bytesUsed != null) {
         isBlockMetadataSet = true;
         kvContainerData.setBytesUsed(Longs.fromByteArray(bytesUsed));

@@ -49,7 +49,6 @@ import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Res
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNKNOWN_BCSID;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.BCSID_MISMATCH;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 
 /**
  * This class is for performing block related operations on the KeyValue
@@ -135,8 +134,12 @@ public class BlockManagerImpl implements BlockManager {
       // block length is used, And also on restart the blocks committed to DB
       // is only used to compute the bytes used. This is done to keep the
       // current behavior and avoid DB write during write chunk operation.
+      byte[] containerBytesUsedKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+          .setContainerID(container.getContainerData().getContainerID())
+          .build().getDBByteKey();
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-          DB_CONTAINER_BYTES_USED_KEY,
+          containerBytesUsedKey,
           Longs.toByteArray(container.getContainerData().getBytesUsed()));
 
       // Set Block Count for a container.

@@ -185,9 +185,13 @@ public class TestBlockDeletingService {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(numOfBlocksPerContainer));
+        byte[] containerBytesUsedKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+            .setContainerID(containerID)
+            .build().getDBByteKey();
         metadata.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+            containerBytesUsedKey,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
         byte[] pendingDeleteCountKey = DBKey.newBuilder()
             .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
