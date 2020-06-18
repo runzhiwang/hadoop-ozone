@@ -24,14 +24,12 @@ import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
-import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
@@ -135,13 +133,11 @@ public class TestContainerReader {
 
         long containerID = keyValueContainer.getContainerData()
             .getContainerID();
-        DBKey deletingKey = DBKey.newBuilder()
+        byte[] deletingKeyBytes = DBKey.newBuilder()
             .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
             .setContainerID(containerID)
             .setBlockLocalID(blockNames.get(i))
-            .build();
-
-        byte[] deletingKeyBytes = DBByteKeyUtil.getDBByteKey(deletingKey);
+            .build().getDBByteKey();
 
         metadataStore.getStore().delete(
             RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);

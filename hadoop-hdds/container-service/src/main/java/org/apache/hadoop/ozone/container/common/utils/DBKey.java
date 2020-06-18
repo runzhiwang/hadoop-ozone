@@ -16,6 +16,10 @@
  */
 package org.apache.hadoop.ozone.container.common.utils;
 
+import com.google.common.primitives.Longs;
+
+import java.nio.charset.StandardCharsets;
+
 public class DBKey {
   private final String prefix;
   private final long containerID;
@@ -55,6 +59,41 @@ public class DBKey {
     return byteArrayLen;
   }
 
+  private int appendLongToByteArray(byte[] array, int start, long num) {
+    if (num == -1) {
+      return start;
+    }
+
+    for (int j = 7; j >= 0; j --) {
+      array[start + j] = (byte) (num & 0xffL);
+      num = num >> 8;
+    }
+
+    return start + 8;
+  }
+
+  private int appendStringToByteArray(byte[] array, int start, String str) {
+    if (str == null || str.isEmpty()) {
+      return start;
+    }
+
+    byte[] strByte = str.getBytes(StandardCharsets.UTF_8);
+    System.arraycopy(strByte, 0, array, start, strByte.length);
+
+    return start + strByte.length;
+  }
+
+  public byte[] getDBByteKey() {
+    byte[] byteKey = new byte[byteArrayLen];
+
+    int start = 0;
+    start = appendStringToByteArray(byteKey, start, prefix);
+    start = appendLongToByteArray(byteKey, start, containerID);
+    start = appendLongToByteArray(byteKey, start, blockLocalID);
+
+    return byteKey;
+  }
+
   @Override
   public String toString() {
     return prefix + "#" + containerID + "#" + blockLocalID;
@@ -68,11 +107,13 @@ public class DBKey {
     private String prefix;
     private long containerID;
     private long blockLocalID;
+    private byte[] bytes;
 
     private Builder() {
       prefix = null;
       containerID = -1;
       blockLocalID = -1;
+      bytes = null;
     }
 
     public Builder setPrefix(String prefix) {
@@ -90,8 +131,51 @@ public class DBKey {
       return this;
     }
 
+    public Builder setBytes(byte[] bytes) {
+      this.bytes = bytes;
+      return this;
+    }
+
     public DBKey build() {
+      if (bytes != null) {
+        parseBytes();
+      }
+
       return new DBKey(prefix, containerID, blockLocalID);
+    }
+
+    private void parseBytes() {
+      int start = 0;
+
+      if (prefix != null && !prefix.isEmpty()) {
+        String str = getStringFromByteArray(bytes, start, prefix.length());
+        start += prefix.length();
+        if (!str.equals(prefix)) {
+          throw new IllegalArgumentException("prefix :" + prefix +
+              " not equal to:" + str + " got from byte array");
+        }
+      }
+
+      if (start < bytes.length) {
+        containerID = getLongFromByteArray(bytes, start);
+        start += 8;
+      }
+
+      if (start < bytes.length) {
+        blockLocalID = getLongFromByteArray(bytes, start);
+        start += 8;
+      }
+    }
+
+    private String getStringFromByteArray(
+        byte[] key, int start, int len) {
+      return new String(key, start, len, StandardCharsets.UTF_8);
+    }
+
+    private long getLongFromByteArray(byte[] key, int start) {
+      return Longs.fromBytes(
+          key[start], key[start + 1], key[start + 2], key[start + 3],
+          key[start + 4], key[start + 5], key[start + 6], key[start + 7]);
     }
   }
 }

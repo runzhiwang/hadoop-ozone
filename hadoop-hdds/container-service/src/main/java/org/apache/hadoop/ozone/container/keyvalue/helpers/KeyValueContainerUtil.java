@@ -32,7 +32,6 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueBlockIterator;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
@@ -191,13 +190,13 @@ public final class KeyValueContainerUtil {
       }
 
       // Set delete transaction id.
-      DBKey dbKey = DBKey.newBuilder()
+      byte[] dbKey = DBKey.newBuilder()
           .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
           .setContainerID(containerID)
-          .build();
+          .build().getDBByteKey();
       byte[] delTxnId =
           containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY,
-              DBByteKeyUtil.getDBByteKey(dbKey));
+              dbKey);
       if (delTxnId != null) {
         kvContainerData
             .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));
