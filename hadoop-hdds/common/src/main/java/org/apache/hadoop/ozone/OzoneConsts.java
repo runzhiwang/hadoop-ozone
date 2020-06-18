@@ -153,8 +153,6 @@ public final class OzoneConsts {
       DFSUtil.string2Bytes(OzoneConsts.CONTAINER_BYTES_USED);
   public static final byte[] DB_PENDING_DELETE_BLOCK_COUNT_KEY =
       DFSUtil.string2Bytes(PENDING_DELETE_BLOCK_COUNT);
-  public static final byte[] DB_CONTAINER_DELETE_TRANSACTION_KEY =
-      DFSUtil.string2Bytes(DELETE_TRANSACTION_KEY_PREFIX);
   public static final byte[] DB_BLOCK_COMMIT_SEQUENCE_ID_KEY =
       DFSUtil.string2Bytes(BLOCK_COMMIT_SEQUENCE_ID_PREFIX);
 
