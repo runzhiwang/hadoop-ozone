@@ -281,9 +281,13 @@ public class TestOzoneContainer {
         chunkList.add(info.getProtoBufMessage());
       }
       blockData.setChunks(chunkList);
+      byte[] blockKey = DBKey.newBuilder()
+          .setPrefix(null).setContainerID(containerId)
+          .setBlockLocalID(blockID.getLocalID())
+          .build().getDBByteKey();
       db.getStore().put(
           RocksDB.DEFAULT_COLUMN_FAMILY,
-          Longs.toByteArray(blockID.getLocalID()),
+          blockKey,
           blockData.getProtoBufMessage().toByteArray());
     }
 

@@ -326,9 +326,13 @@ public class TestBlockDeletion {
       try(ReferenceCountedDB db =
           BlockUtils.getDB((KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
+        byte[] key = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(blockID.getContainerID())
+            .setBlockLocalID(blockID.getLocalID())
+            .build().getDBByteKey();
         Assert.assertNotNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            Longs.toByteArray(blockID.getLocalID())));
+            key);
       }
     }, omKeyLocationInfoGroups);
   }
@@ -342,9 +346,13 @@ public class TestBlockDeletion {
       try(ReferenceCountedDB db =
           BlockUtils.getDB((KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
+        byte[] blockKey = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(blockID.getContainerID())
+            .setBlockLocalID(blockID.getLocalID())
+            .build().getDBByteKey();
         Assert.assertNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            Longs.toByteArray(blockID.getLocalID())));
+            blockKey));
         byte[] deletingKey = DBKey.newBuilder()
             .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
             .setContainerID(blockID.getContainerID())

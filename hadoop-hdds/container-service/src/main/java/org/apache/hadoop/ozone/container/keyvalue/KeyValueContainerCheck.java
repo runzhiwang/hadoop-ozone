@@ -32,6 +32,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.ChunkUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
@@ -244,9 +245,13 @@ public class KeyValueContainerCheck {
 
           if (!chunkFile.exists()) {
             // concurrent mutation in Block DB? lookup the block again.
+            byte[] key = DBKey.newBuilder()
+                .setPrefix(null).setContainerID(containerID)
+                .setBlockLocalID(block.getBlockID().getLocalID())
+                .build().getDBByteKey();
             byte[] bdata = db.getStore().get(
                 RocksDB.DEFAULT_COLUMN_FAMILY,
-                Longs.toByteArray(block.getBlockID().getLocalID()));
+                key);
             if (bdata != null) {
               throw new IOException("Missing chunk file "
                   + chunkFile.getAbsolutePath());

@@ -127,7 +127,10 @@ public class TestContainerReader {
           .getContainerID();
 
       for (int i = 0; i < count; i++) {
-        byte[] blkBytes = Longs.toByteArray(blockNames.get(i));
+        byte[] blkBytes = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(containerID)
+            .setBlockLocalID(blockNames.get(i))
+            .build().getDBByteKey();
         byte[] blkInfo = metadataStore.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
 
@@ -204,9 +207,13 @@ public class TestContainerReader {
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
         blkNames.add(blockID.getLocalID());
+        byte[] blockKey = DBKey.newBuilder()
+            .setPrefix(null).setContainerID(containerId)
+            .setBlockLocalID(blockID.getLocalID())
+            .build().getDBByteKey();
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            Longs.toByteArray(blockID.getLocalID()),
+            blockKey,
             blockData.getProtoBufMessage().toByteArray());
       }
 
