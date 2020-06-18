@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -161,13 +160,17 @@ public class TestContainerReader {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(blkCount - count));
+        byte[] containerBytesUsedKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+            .setContainerID(containerID)
+            .build().getDBByteKey();
         long bytesUsed = Longs.fromByteArray(
             metadataStore.getStore().get(
                 RocksDB.DEFAULT_COLUMN_FAMILY,
-                DB_CONTAINER_BYTES_USED_KEY));
+                containerBytesUsedKey));
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            DB_CONTAINER_BYTES_USED_KEY,
+            containerBytesUsedKey,
             Longs.toByteArray(bytesUsed - (count * blockLen)));
 
       }
@@ -207,9 +210,13 @@ public class TestContainerReader {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(blockCount));
+        byte[] containerBytesUsedKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+            .setContainerID(containerId)
+            .build().getDBByteKey();
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+            containerBytesUsedKey,
             Longs.toByteArray(blockCount * blockLen));
       }
     }

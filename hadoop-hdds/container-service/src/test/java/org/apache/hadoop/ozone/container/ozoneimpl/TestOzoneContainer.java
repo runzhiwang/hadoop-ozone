@@ -36,6 +36,7 @@ import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -248,9 +249,13 @@ public class TestOzoneContainer {
         RocksDB.DEFAULT_COLUMN_FAMILY,
         OzoneConsts.DB_BLOCK_COUNT_KEY,
         Longs.toByteArray(blocks));
+    byte[] containerBytesUsedKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+        .setContainerID(containerId)
+        .build().getDBByteKey();
     db.getStore().put(
         RocksDB.DEFAULT_COLUMN_FAMILY,
-        OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+        containerBytesUsedKey,
         Longs.toByteArray(usedBytes));
 
     // remaining available capacity of the container
