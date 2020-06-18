@@ -28,6 +28,8 @@ import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters.KeyPrefixFilter;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.ozone.client.OzoneBucket;
+import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -104,9 +106,10 @@ public class TestStorageContainerManagerHelper {
         .getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
             null, Integer.MAX_VALUE, filter);
     kvs.forEach(entry -> {
-      String key = DFSUtil.bytes2String(entry.getKey());
+      DBKey deletingKey = DBByteKeyUtil.getDBKey(entry.getKey(),
+          OzoneConsts.DELETING_KEY_PREFIX);
       pendingDeletionBlocks
-          .add(key.replace(OzoneConsts.DELETING_KEY_PREFIX, ""));
+          .add(String.valueOf(deletingKey.getBlockLocalID()));
     });
     meta.close();
     return pendingDeletionBlocks;

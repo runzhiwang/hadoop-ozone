@@ -37,6 +37,8 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
+import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -282,10 +284,14 @@ public class TestKeyValueBlockIterator {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
+        DBKey deletingKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+            .setContainerID(blockID.getContainerID())
+            .setBlockLocalID(blockID.getLocalID())
+            .build();
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            DFSUtil.string2Bytes(OzoneConsts
-            .DELETING_KEY_PREFIX + blockID.getLocalID()),
+            DBByteKeyUtil.getDBByteKey(deletingKey),
             blockData.getProtoBufMessage().toByteArray());
       }
     }
