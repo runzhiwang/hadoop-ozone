@@ -35,7 +35,6 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers
     .DeletedContainerBlocksSummary;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -218,20 +217,18 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blkBytes);
         if (blkInfo != null) {
-          DBKey deletingKey = DBKey.newBuilder()
+          byte[] deletingKeyBytes = DBKey.newBuilder()
               .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
               .setContainerID(containerId)
               .setBlockLocalID(blk)
-              .build();
-          byte[] deletingKeyBytes = DBByteKeyUtil.getDBByteKey(deletingKey);
+              .build().getDBByteKey();
 
-          DBKey deletedKey = DBKey.newBuilder()
+          byte[] deletedKeyBytes = DBKey.newBuilder()
               .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
               .setContainerID(containerId)
               .setBlockLocalID(blk)
-              .build();
-          byte[] deletedKeyBytes =
-              DBByteKeyUtil.getDBByteKey(deletedKey);
+              .build().getDBByteKey();
+
           if (containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes) != null
               || containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletedKeyBytes) != null) {
             if (LOG.isDebugEnabled()) {
@@ -275,13 +272,12 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       // greater.
       if (delTX.getTxID() > containerData.getDeleteTransactionId()) {
         // Update in DB pending delete key count and delete transaction ID.
-        DBKey dbKey = DBKey.newBuilder()
+        byte[] dbKey = DBKey.newBuilder()
             .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
             .setContainerID(containerId)
-            .build();
+            .build().getDBByteKey();
         batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-            DBByteKeyUtil.getDBByteKey(dbKey),
-            Longs.toByteArray(delTX.getTxID()));
+            dbKey, Longs.toByteArray(delTX.getTxID()));
       }
 
       batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,

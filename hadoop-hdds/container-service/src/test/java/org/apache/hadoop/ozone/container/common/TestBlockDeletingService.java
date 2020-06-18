@@ -49,7 +49,6 @@ import org.apache.hadoop.ozone.container.common.impl.TopNOrderedContainerDeletio
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -153,11 +152,11 @@ public class TestBlockDeletingService {
         for (int j = 0; j < numOfBlocksPerContainer; j++) {
           BlockID blockID =
               ContainerTestHelper.getTestBlockID(containerID);
-          DBKey deleteStateName = DBKey.newBuilder()
+          byte[] deleteStateName = DBKey.newBuilder()
               .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
               .setContainerID(containerID)
               .setBlockLocalID(blockID.getLocalID())
-              .build();
+              .build().getDBByteKey();
 
           BlockData kd = new BlockData(blockID);
           List<ContainerProtos.ChunkInfo> chunks = Lists.newArrayList();
@@ -174,7 +173,7 @@ public class TestBlockDeletingService {
           kd.setChunks(chunks);
           metadata.getStore().put(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              DBByteKeyUtil.getDBByteKey(deleteStateName),
+              deleteStateName,
               kd.getProtoBufMessage().toByteArray());
           container.getContainerData().incrPendingDeletionBlocks(1);
         }

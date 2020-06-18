@@ -32,7 +32,6 @@ import org.apache.hadoop.ozone.common.ChecksumData;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
@@ -255,14 +254,14 @@ import static org.junit.Assert.assertFalse;
 
         if (i >= normalBlocks) {
           // deleted key
-          DBKey deletingKey = DBKey.newBuilder()
+          byte[] deletingKey = DBKey.newBuilder()
               .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
               .setContainerID(blockID.getContainerID())
               .setBlockLocalID(blockID.getLocalID())
-              .build();
+              .build().getDBByteKey();
           metadataStore.getStore().put(
               RocksDB.DEFAULT_COLUMN_FAMILY,
-              DBByteKeyUtil.getDBByteKey(deletingKey),
+              deletingKey,
               blockData.getProtoBufMessage().toByteArray());
         } else {
           // normal key

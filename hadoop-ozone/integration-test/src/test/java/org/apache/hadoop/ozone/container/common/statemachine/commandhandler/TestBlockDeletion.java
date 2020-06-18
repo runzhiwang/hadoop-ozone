@@ -42,7 +42,6 @@ import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -346,20 +345,20 @@ public class TestBlockDeletion {
         Assert.assertNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             Longs.toByteArray(blockID.getLocalID())));
-        DBKey deletingKey = DBKey.newBuilder()
+        byte[] deletingKey = DBKey.newBuilder()
             .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
             .setContainerID(blockID.getContainerID())
             .setBlockLocalID(blockID.getLocalID())
-            .build();
+            .build().getDBByteKey();
         Assert.assertNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
-            DBByteKeyUtil.getDBByteKey(deletingKey)));
-        DBKey deletedKey = DBKey.newBuilder()
+            deletingKey));
+        byte[] deletedKey = DBKey.newBuilder()
             .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
             .setContainerID(blockID.getContainerID())
             .setBlockLocalID(blockID.getLocalID())
-            .build();
-        Assert.assertNotNull(DBByteKeyUtil.getDBByteKey(deletedKey));
+            .build().getDBByteKey();
+        Assert.assertNotNull(deletedKey);
       }
       containerIdsWithDeletedBlocks.add(blockID.getContainerID());
     }, omKeyLocationInfoGroups);

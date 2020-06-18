@@ -48,7 +48,6 @@ import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDeletionChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
-import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
@@ -281,8 +280,10 @@ public class BlockDeletingService extends BackgroundService {
             .getHandler(container.getContainerType()));
 
         toDeleteBlocks.forEach(entry -> {
-          DBKey key = DBByteKeyUtil.getDBKey(entry.getKey(),
-              OzoneConsts.DELETING_KEY_PREFIX);
+          DBKey key = DBKey.newBuilder()
+              .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+              .setBytes(entry.getKey())
+              .build();
           LOG.debug("Deleting block {}", key);
           try {
             ContainerProtos.BlockData data =
@@ -300,16 +301,16 @@ public class BlockDeletingService extends BackgroundService {
         // entries
         BatchOperation batch = new BatchOperation();
         succeedBlocks.forEach(entry -> {
-          DBKey deletedEntry = DBKey.newBuilder()
+          byte[] deletedEntry = DBKey.newBuilder()
               .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
               .setContainerID(entry.getContainerID())
               .setBlockLocalID(entry.getBlockLocalID())
-              .build();
+              .build().getDBByteKey();
           batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-              DBByteKeyUtil.getDBByteKey(deletedEntry),
+              deletedEntry,
               StringUtils.string2Bytes(String.valueOf(entry.getBlockLocalID())));
           batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY,
-              DBByteKeyUtil.getDBByteKey(entry));
+              entry.getDBByteKey());
         });
 
 
