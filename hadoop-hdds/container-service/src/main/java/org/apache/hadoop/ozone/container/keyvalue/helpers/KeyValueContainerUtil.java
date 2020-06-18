@@ -31,6 +31,8 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
+import org.apache.hadoop.ozone.container.common.utils.DBByteKeyUtil;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueBlockIterator;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.hdds.utils.MetadataStore;
@@ -46,7 +48,6 @@ import org.slf4j.LoggerFactory;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COMMIT_SEQUENCE_ID_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_DELETE_TRANSACTION_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 
 /**
@@ -189,9 +190,13 @@ public final class KeyValueContainerUtil {
       }
 
       // Set delete transaction id.
+      DBKey dbKey = DBKey.newBuilder()
+          .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
+          .setContainerID(containerID)
+          .build();
       byte[] delTxnId =
           containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY,
-              DB_CONTAINER_DELETE_TRANSACTION_KEY);
+              DBByteKeyUtil.getDBByteKey(dbKey));
       if (delTxnId != null) {
         kvContainerData
             .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));

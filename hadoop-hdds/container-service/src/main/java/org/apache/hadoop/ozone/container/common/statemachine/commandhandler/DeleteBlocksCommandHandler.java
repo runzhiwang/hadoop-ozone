@@ -61,7 +61,6 @@ import java.util.function.Consumer;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .Result.CONTAINER_NOT_FOUND;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_DELETE_TRANSACTION_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 
 /**
@@ -276,8 +275,12 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       // greater.
       if (delTX.getTxID() > containerData.getDeleteTransactionId()) {
         // Update in DB pending delete key count and delete transaction ID.
+        DBKey dbKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
+            .setContainerID(containerId)
+            .build();
         batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-            DB_CONTAINER_DELETE_TRANSACTION_KEY,
+            DBByteKeyUtil.getDBByteKey(dbKey),
             Longs.toByteArray(delTX.getTxID()));
       }
 
