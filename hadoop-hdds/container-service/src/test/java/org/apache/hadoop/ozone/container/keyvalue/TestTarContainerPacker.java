@@ -54,6 +54,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.compress.compressors.CompressorStreamFactory.GZIP;
@@ -134,7 +135,8 @@ public class TestTarContainerPacker {
         -1, UUID.randomUUID().toString(), UUID.randomUUID().toString());
     containerData.setChunksPath(dataDir.toString());
     containerData.setMetadataPath(dbDir.getParent().toString());
-    containerData.setDbFile(dbDir.toFile());
+    containerData.setDbPath(dbDir.toFile().getAbsolutePath());
+    containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
 
     return containerData;
   }

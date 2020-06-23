@@ -11,4 +11,6 @@ originNodeId: 7f541a06-6c26-476d-9994-c6e1947e11cb
 metadata: {OWNER: ozone, VOLUME: hdfs}
 state: CLOSED
 aclEnabled: true
-checksum: 61db56da7d50798561b5365c123c5fbf7faf99fbbbd571a746af79020b7f79ba
+dbPath: /hdds/current/rocksdb0
+categoryInDB: columnFamily0
+checksum: f5bc78b0ec8735eda15acb6ba2c62e2564af7ff50546ab155c1da60ed06fbb9a

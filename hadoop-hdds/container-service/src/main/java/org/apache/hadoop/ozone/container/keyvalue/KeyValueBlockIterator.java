@@ -93,8 +93,9 @@ public class KeyValueBlockIterator implements BlockIterator<BlockData>,
         containerFile);
     KeyValueContainerData keyValueContainerData = (KeyValueContainerData)
         containerData;
-    keyValueContainerData.setDbFile(KeyValueContainerLocationUtil
-        .getContainerDBFile(metdataPath, containerId));
+    keyValueContainerData.setDbPath(KeyValueContainerLocationUtil
+        .getContainerDBFile(metdataPath, containerId).getAbsolutePath());
+    keyValueContainerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
     db = BlockUtils.getDB(keyValueContainerData, new
         OzoneConfiguration());
     blockIterator = db.getStore().iterator(RocksDB.DEFAULT_COLUMN_FAMILY);

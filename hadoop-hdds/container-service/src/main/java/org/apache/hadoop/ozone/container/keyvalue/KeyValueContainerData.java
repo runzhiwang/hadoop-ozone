@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import com.google.common.primitives.Longs;
+import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .ContainerDataProto;
@@ -44,9 +45,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.Math.max;
-import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
-import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
+import static org.apache.hadoop.ozone.OzoneConsts.*;
 
 /**
  * This class represents the KeyValueContainer metadata, which is the
@@ -67,8 +66,8 @@ public class KeyValueContainerData extends ContainerData {
   //Type of DB used to store key to chunks mapping
   private String containerDBType;
 
-  private File dbFile = null;
-
+  private String dbPath;
+  private String categoryInDB;
   /**
    * Number of pending deletion blocks in KeyValueContainer.
    */
@@ -85,6 +84,8 @@ public class KeyValueContainerData extends ContainerData {
     KV_YAML_FIELDS.add(METADATA_PATH);
     KV_YAML_FIELDS.add(CHUNKS_PATH);
     KV_YAML_FIELDS.add(CONTAINER_DB_TYPE);
+    KV_YAML_FIELDS.add(DB_PATH);
+    KV_YAML_FIELDS.add(CATEGORY_IN_DB);
   }
 
   /**
@@ -111,12 +112,20 @@ public class KeyValueContainerData extends ContainerData {
 
 
   /**
-   * Sets Container dbFile. This should be called only during creation of
+   * Sets Container dbPath. This should be called only during creation of
    * KeyValue container.
-   * @param containerDbFile
+   * @param dbPath
    */
-  public void setDbFile(File containerDbFile) {
-    dbFile = containerDbFile;
+  public void setDbPath(String dbPath) {
+    this.dbPath = dbPath;
+  }
+
+  public void setCategoryInDB(String categoryInDB) {
+    this.categoryInDB = categoryInDB;
+  }
+
+  public void setCategoryInDB(byte[] categoryInDB) {
+    this.categoryInDB = StringUtils.bytes2String(categoryInDB);
   }
 
   /**
@@ -124,7 +133,15 @@ public class KeyValueContainerData extends ContainerData {
    * @return dbFile
    */
   public File getDbFile() {
-    return dbFile;
+    return new File(dbPath);
+  }
+
+  public String getDbPath() {
+    return dbPath;
+  }
+
+  public String getCategoryInDB() {
+    return categoryInDB;
   }
 
   /**
