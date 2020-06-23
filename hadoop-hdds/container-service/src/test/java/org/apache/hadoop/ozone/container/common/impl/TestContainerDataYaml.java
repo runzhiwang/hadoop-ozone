@@ -56,6 +56,7 @@ public class TestContainerDataYaml {
 
   private static final String VOLUME_OWNER = "hdfs";
   private static final String CONTAINER_DB_TYPE = "RocksDB";
+  private static final String CATEGORY_IN_DB = "columnFamily0";
 
   private final ChunkLayOutVersion layout;
 
@@ -85,6 +86,8 @@ public class TestContainerDataYaml {
     keyValueContainerData.setMetadataPath(testRoot);
     keyValueContainerData.setChunksPath(testRoot);
     keyValueContainerData.updateDataScanTime(SCAN_TIME);
+    keyValueContainerData.setDbPath(testRoot);
+    keyValueContainerData.setCategoryInDB(CATEGORY_IN_DB);
 
     File containerFile = new File(testRoot, containerPath);
 
@@ -208,6 +211,8 @@ public class TestContainerDataYaml {
           .getMetadataPath());
       assertEquals(FILE_PER_CHUNK, kvData.getLayOutVersion());
       assertEquals(2, kvData.getMetadata().size());
+      assertEquals("/hdds/current/rocksdb0", kvData.getDbPath());
+      assertEquals("columnFamily0", kvData.getCategoryInDB());
 
     } catch (Exception ex) {
       ex.printStackTrace();

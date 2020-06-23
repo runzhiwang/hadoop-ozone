@@ -45,6 +45,8 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import com.google.common.base.Preconditions;
 import static org.apache.hadoop.ozone.container.keyvalue
     .KeyValueContainerData.KEYVALUE_YAML_TAG;
+
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -280,6 +282,16 @@ public final class ContainerDataYaml {
         String state = (String) nodes.get(OzoneConsts.STATE);
         kvData
             .setState(ContainerProtos.ContainerDataProto.State.valueOf(state));
+
+        if (nodes.containsKey(OzoneConsts.DB_PATH)) {
+          kvData.setDbPath((String) nodes.get(OzoneConsts.DB_PATH));
+        }
+        if (nodes.containsKey(OzoneConsts.CATEGORY_IN_DB)) {
+          kvData.setCategoryInDB((String) nodes.get(OzoneConsts.CATEGORY_IN_DB));
+        } else {
+          kvData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
+        }
+
         return kvData;
       }
     }

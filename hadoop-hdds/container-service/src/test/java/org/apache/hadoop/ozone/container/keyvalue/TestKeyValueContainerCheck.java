@@ -165,7 +165,8 @@ import static org.junit.Assert.assertFalse;
     File metaDir = new File(containerData.getMetadataPath());
     File dbFile = KeyValueContainerLocationUtil
         .getContainerDBFile(metaDir, containerID);
-    containerData.setDbFile(dbFile);
+    containerData.setDbPath(dbFile.getAbsolutePath());
+    containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
     try (ReferenceCountedDB ignored =
             BlockUtils.getDB(containerData, conf);
         KeyValueBlockIterator kvIter = new KeyValueBlockIterator(containerID,
