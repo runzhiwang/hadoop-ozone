@@ -127,18 +127,12 @@ public class TestContainerReader {
           .getContainerID();
 
       for (int i = 0; i < count; i++) {
-        byte[] blkBytes = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(containerID)
-            .setBlockLocalID(blockNames.get(i))
-            .build().getDBByteKey();
+        byte[] blkBytes = DBKey.getBlockKey(containerID, blockNames.get(i));
         byte[] blkInfo = metadataStore.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
 
-        byte[] deletingKeyBytes = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-            .setContainerID(containerID)
-            .setBlockLocalID(blockNames.get(i))
-            .build().getDBByteKey();
+        byte[] deletingKeyBytes =
+            DBKey.getDeletingKey(containerID, blockNames.get(i));
 
         metadataStore.getStore().delete(
             RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
@@ -147,19 +141,14 @@ public class TestContainerReader {
       }
 
       if (setMetaData) {
-        byte[] pendingDeleteCountKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] pendingDeleteCountKey =
+            DBKey.getPendingDeleteCountDBKey(containerID);
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             pendingDeleteCountKey,
             Longs.toByteArray(count));
 
-        byte[] blockCountKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.BLOCK_COUNT)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
         long blkCount = Longs.fromByteArray(
             metadataStore.getStore().get(
                 RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -168,10 +157,7 @@ public class TestContainerReader {
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockCountKey,
             Longs.toByteArray(blkCount - count));
-        byte[] containerBytesUsedKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
         long bytesUsed = Longs.fromByteArray(
             metadataStore.getStore().get(
                 RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -207,10 +193,7 @@ public class TestContainerReader {
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
         blkNames.add(blockID.getLocalID());
-        byte[] blockKey = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(containerId)
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockKey,
@@ -218,18 +201,12 @@ public class TestContainerReader {
       }
 
       if (setMetaData) {
-        byte[] blockCountKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.BLOCK_COUNT)
-            .setContainerID(containerId)
-            .build().getDBByteKey();
+        byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockCountKey,
             Longs.toByteArray(blockCount));
-        byte[] containerBytesUsedKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
-            .setContainerID(containerId)
-            .build().getDBByteKey();
+        byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerId);
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             containerBytesUsedKey,

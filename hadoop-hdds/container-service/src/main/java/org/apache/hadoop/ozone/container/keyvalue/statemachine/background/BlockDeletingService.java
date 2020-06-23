@@ -256,10 +256,8 @@ public class BlockDeletingService extends BackgroundService {
       // Scan container's db and get list of under deletion blocks
       try (ReferenceCountedDB meta = BlockUtils.getDB(containerData, conf)) {
         // # of blocks to delete is throttled
-        byte[] prefixKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-            .setContainerID(containerData.getContainerID())
-            .build().getDBByteKey();
+        byte[] prefixKey =
+            DBKey.getDeletingKey(containerData.getContainerID());
         KeyPrefixFilter filter = new KeyPrefixFilter().addFilter(prefixKey);
         List<Map.Entry<byte[], byte[]>> toDeleteBlocks =
             meta.getStore().getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, blockLimitPerTask,
@@ -304,11 +302,8 @@ public class BlockDeletingService extends BackgroundService {
         // entries
         BatchOperation batch = new BatchOperation();
         succeedBlocks.forEach(entry -> {
-          byte[] deletedEntry = DBKey.newBuilder()
-              .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
-              .setContainerID(entry.getContainerID())
-              .setBlockLocalID(entry.getBlockLocalID())
-              .build().getDBByteKey();
+          byte[] deletedEntry = DBKey.getDeletedKey(
+              entry.getContainerID(), entry.getBlockLocalID());
           batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
               deletedEntry,
               StringUtils.string2Bytes(String.valueOf(entry.getBlockLocalID())));

@@ -246,10 +246,8 @@ public class KeyValueContainerCheck {
 
           if (!chunkFile.exists()) {
             // concurrent mutation in Block DB? lookup the block again.
-            byte[] key = DBKey.newBuilder()
-                .setPrefix(null).setContainerID(containerID)
-                .setBlockLocalID(block.getBlockID().getLocalID())
-                .build().getDBByteKey();
+            byte[] key = DBKey.getBlockKey(
+                containerID, block.getBlockID().getLocalID());
             byte[] bdata = db.getStore().get(
                 RocksDB.DEFAULT_COLUMN_FAMILY,
                 key);

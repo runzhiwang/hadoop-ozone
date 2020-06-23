@@ -115,14 +115,13 @@ public class BlockManagerImpl implements BlockManager {
       }
       // update the blockData as well as BlockCommitSequenceId here
       BatchOperation batch = new BatchOperation();
+      long containerID = container.getContainerData().getContainerID();
+      byte[] blockKey = DBKey.getBlockKey(containerID, data.getLocalID());
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
-          Longs.toByteArray(data.getLocalID()),
+          blockKey,
           data.getProtoBufMessage().toByteArray());
 
-      byte[] seqIdKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX)
-          .setContainerID(container.getContainerData().getContainerID())
-          .build().getDBByteKey();
+      byte[] seqIdKey = DBKey.getBcsIdDBKey(containerID);
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
           seqIdKey,
           Longs.toByteArray(bcsId));
@@ -133,19 +132,13 @@ public class BlockManagerImpl implements BlockManager {
       // block length is used, And also on restart the blocks committed to DB
       // is only used to compute the bytes used. This is done to keep the
       // current behavior and avoid DB write during write chunk operation.
-      byte[] containerBytesUsedKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
-          .setContainerID(container.getContainerData().getContainerID())
-          .build().getDBByteKey();
+      byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
           containerBytesUsedKey,
           Longs.toByteArray(container.getContainerData().getBytesUsed()));
 
       // Set Block Count for a container.
-      byte[] blockCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COUNT)
-          .setContainerID(container.getContainerData().getContainerID())
-          .build().getDBByteKey();
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
           blockCountKey,
           Longs.toByteArray(container.getContainerData().getKeyCount() + 1));
@@ -257,7 +250,8 @@ public class BlockManagerImpl implements BlockManager {
       // are not atomic. Leaving it here since the impact is refusing
       // to delete a Block which might have just gotten inserted after
       // the get check.
-      byte[] blockKey = Longs.toByteArray(blockID.getLocalID());
+      byte[] blockKey = DBKey.getBlockKey(
+          blockID.getContainerID(), blockID.getLocalID());
 
       getBlockByID(db, blockID);
 
@@ -267,10 +261,8 @@ public class BlockManagerImpl implements BlockManager {
       // Update DB to delete block and set block count.
       // No need to set bytes used here, as bytes used is taken care during
       // delete chunk.
-      byte[] blockCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COUNT)
-          .setContainerID(container.getContainerData().getContainerID())
-          .build().getDBByteKey();
+      long containerID = container.getContainerData().getContainerID();
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       batch.put(RocksDB.DEFAULT_COLUMN_FAMILY, blockCountKey,
           Longs.toByteArray(container.getContainerData().getKeyCount() - 1));
       db.getStore().writeBatch(batch);
@@ -303,10 +295,8 @@ public class BlockManagerImpl implements BlockManager {
           (KeyValueContainerData) container.getContainerData();
       try (ReferenceCountedDB db = BlockUtils.getDB(cData, config)) {
         result = new ArrayList<>();
-        byte[] startKeyInBytes = DBKey.newBuilder()
-            .setContainerID(cData.getContainerID())
-            .setBlockLocalID(startLocalID)
-            .build().getDBByteKey();
+        byte[] startKeyInBytes = DBKey.getBlockKey(
+            cData.getContainerID(), startLocalID);
         List<Map.Entry<byte[], byte[]>> range = db.getStore()
             .getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
                 startKeyInBytes, count,
@@ -333,7 +323,8 @@ public class BlockManagerImpl implements BlockManager {
 
   private byte[] getBlockByID(ReferenceCountedDB db, BlockID blockID)
       throws IOException {
-    byte[] blockKey = Longs.toByteArray(blockID.getLocalID());
+    byte[] blockKey = DBKey.getBlockKey(
+        blockID.getContainerID(), blockID.getLocalID());
 
     byte[] blockData = db.getStore()
         .get(RocksDB.DEFAULT_COLUMN_FAMILY, blockKey);

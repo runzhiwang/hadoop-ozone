@@ -151,12 +151,8 @@ public class TestBlockDeletingService {
         for (int j = 0; j < numOfBlocksPerContainer; j++) {
           BlockID blockID =
               ContainerTestHelper.getTestBlockID(containerID);
-          byte[] deleteStateName = DBKey.newBuilder()
-              .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-              .setContainerID(containerID)
-              .setBlockLocalID(blockID.getLocalID())
-              .build().getDBByteKey();
-
+          byte[] deleteStateName =
+              DBKey.getDeletingKey(containerID, blockID.getLocalID());
           BlockData kd = new BlockData(blockID);
           List<ContainerProtos.ChunkInfo> chunks = Lists.newArrayList();
           for (int k = 0; k < numOfChunksPerBlock; k++) {
@@ -181,26 +177,18 @@ public class TestBlockDeletingService {
         container.getContainerData().setBytesUsed(
             blockLength * numOfBlocksPerContainer);
         // Set block count, bytes used and pending delete block count.
-        byte[] blockCountKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.BLOCK_COUNT)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
         metadata.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockCountKey,
             Longs.toByteArray(numOfBlocksPerContainer));
-        byte[] containerBytesUsedKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
         metadata.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             containerBytesUsedKey,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
-        byte[] pendingDeleteCountKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] pendingDeleteCountKey =
+            DBKey.getPendingDeleteCountDBKey(containerID);
         metadata.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             pendingDeleteCountKey,
@@ -225,10 +213,7 @@ public class TestBlockDeletingService {
    */
   private int getUnderDeletionBlocksCount(
       long containerID, ReferenceCountedDB meta) throws IOException {
-    byte[] prefixKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
+    byte[] prefixKey = DBKey.getDeletingKey(containerID);
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
         meta.getStore().getRangeKVs(
             RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -241,10 +226,7 @@ public class TestBlockDeletingService {
 
   private int getDeletedBlocksCount(
       long containerID, ReferenceCountedDB db) throws IOException {
-    byte[] prefixKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
+    byte[] prefixKey = DBKey.getDeletedKey(containerID);
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
         db.getStore().getRangeKVs(
             RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -309,14 +291,13 @@ public class TestBlockDeletingService {
 
       // Check finally DB counters.
       // Not checking bytes used, as handler is a mock call.
+      byte[] pendingDeleteCountKey =
+          DBKey.getPendingDeleteCountDBKey(containerID);
       Assert.assertEquals(0, Longs.fromByteArray(
           meta.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
               pendingDeleteCountKey)));
-      byte[] blockCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COUNT)
-          .setContainerID(containerData.get(0).getContainerID())
-          .build().getDBByteKey();
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       Assert.assertEquals(0, Longs.fromByteArray(
           meta.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,

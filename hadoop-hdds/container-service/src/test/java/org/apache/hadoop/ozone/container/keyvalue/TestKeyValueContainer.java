@@ -167,10 +167,7 @@ public class TestKeyValueContainer {
             .getLocalID(), 0), 0, 1024);
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
-        byte[] blockKey = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(containerId)
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockKey,
@@ -227,10 +224,7 @@ public class TestKeyValueContainer {
 
       // As now when we put blocks, we increment block count and update in DB.
       // As for test, we are doing manually so adding key count to DB.
-      byte[] blockCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COUNT)
-          .setContainerID(containerId)
-          .build().getDBByteKey();
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
       metadataStore.getStore().put(
           RocksDB.DEFAULT_COLUMN_FAMILY,
           blockCountKey,
