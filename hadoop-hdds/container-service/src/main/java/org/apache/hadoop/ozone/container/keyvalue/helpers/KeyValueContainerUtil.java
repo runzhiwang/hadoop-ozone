@@ -164,10 +164,8 @@ public final class KeyValueContainerUtil {
         config)) {
 
       // Set pending deleted block count.
-      byte[] pendingDeleteCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
-          .setContainerID(containerID)
-          .build().getDBByteKey();
+      byte[] pendingDeleteCountKey =
+          DBKey.getPendingDeleteCountDBKey(containerID);
       byte[] pendingDeleteBlockCount =
           containerDB.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -177,10 +175,7 @@ public final class KeyValueContainerUtil {
             Ints.fromByteArray(pendingDeleteBlockCount));
       } else {
         // Set pending deleted block count.
-        byte[] prefixKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-            .setContainerID(containerID)
-            .build().getDBByteKey();
+        byte[] prefixKey = DBKey.getDeletingKey(containerID);
         MetadataKeyFilters.KeyPrefixFilter filter =
             new MetadataKeyFilters.KeyPrefixFilter().addFilter(prefixKey);
         int numPendingDeletionBlocks =
@@ -193,10 +188,7 @@ public final class KeyValueContainerUtil {
       }
 
       // Set delete transaction id.
-      byte[] dbKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
-          .setContainerID(containerID)
-          .build().getDBByteKey();
+      byte[] dbKey = DBKey.getDelTxDBKey(containerID);
       byte[] delTxnId =
           containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY,
               dbKey);
@@ -205,11 +197,7 @@ public final class KeyValueContainerUtil {
             .updateDeleteTransactionId(Longs.fromByteArray(delTxnId));
       }
 
-      byte[] seqIdKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX)
-          .setContainerID(containerID)
-          .build().getDBByteKey();
-
+      byte[] seqIdKey = DBKey.getBcsIdDBKey(containerID);
       // Set BlockCommitSequenceId.
       byte[] bcsId = containerDB.getStore().get(
           RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -221,10 +209,7 @@ public final class KeyValueContainerUtil {
 
       // Set bytes used.
       // commitSpace for Open Containers relies on usedBytes
-      byte[] containerBytesUsedKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
-          .setContainerID(containerID)
-          .build().getDBByteKey();
+      byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
       byte[] bytesUsed =
           containerDB.getStore().get(
               RocksDB.DEFAULT_COLUMN_FAMILY,
@@ -235,10 +220,7 @@ public final class KeyValueContainerUtil {
       }
 
       // Set block count.
-      byte[] blockCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.BLOCK_COUNT)
-          .setContainerID(containerID)
-          .build().getDBByteKey();
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       byte[] blockCount = containerDB.getStore().get(
           RocksDB.DEFAULT_COLUMN_FAMILY,
           blockCountKey);

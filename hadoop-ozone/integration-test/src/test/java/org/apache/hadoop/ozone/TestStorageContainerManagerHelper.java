@@ -98,10 +98,7 @@ public class TestStorageContainerManagerHelper {
       throws IOException {
     List<String> pendingDeletionBlocks = Lists.newArrayList();
     ReferenceCountedDB meta = getContainerMetadata(containerID);
-    byte[] prefixKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
+    byte[] prefixKey = DBKey.getDeletingKey(containerID);
     KeyPrefixFilter filter =
         new KeyPrefixFilter().addFilter(prefixKey);
     List<Map.Entry<byte[], byte[]>> kvs = meta.getStore()

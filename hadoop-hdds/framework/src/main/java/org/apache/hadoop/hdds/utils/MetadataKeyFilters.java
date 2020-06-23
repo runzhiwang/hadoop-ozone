@@ -101,7 +101,7 @@ public final class MetadataKeyFilters {
 
     public KeyPrefixFilter addFilter(byte[] keyPrefix, boolean negative) {
       Preconditions.checkArgument(keyPrefix != null && keyPrefix.length != 0,
-          "KeyPrefix is null or empty: " + keyPrefix);
+          "KeyPrefix is null or empty");
       // keyPrefix which needs to be added should not be prefix of any opposing
       // filter already present. If keyPrefix is a negative filter it should not
       // be a prefix of any positive filter. Nor should any opposing filter be
@@ -113,13 +113,13 @@ public final class MetadataKeyFilters {
         Preconditions.checkArgument(positivePrefixList.stream().noneMatch(
             prefix -> prefixMatch(prefix, keyPrefix) ||
                 prefixMatch(keyPrefix, prefix)),
-            "KeyPrefix: " + keyPrefix + " already accepted.");
+            "KeyPrefix: " + StringUtils.bytes2String(keyPrefix) + " already accepted.");
         this.negativePrefixList.add(keyPrefix);
       } else {
         Preconditions.checkArgument(negativePrefixList.stream().noneMatch(
             prefix -> prefixMatch(prefix, keyPrefix) ||
                 prefixMatch(keyPrefix, prefix)),
-            "KeyPrefix: " + keyPrefix + " already rejected.");
+            "KeyPrefix: " + StringUtils.bytes2String(keyPrefix) + " already rejected.");
         this.positivePrefixList.add(keyPrefix);
       }
       return this;

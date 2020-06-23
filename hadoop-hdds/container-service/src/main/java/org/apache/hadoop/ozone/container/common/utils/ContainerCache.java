@@ -31,6 +31,7 @@ import org.apache.hadoop.ozone.OzoneConfigKeys;
 import com.google.common.base.Preconditions;
 import org.apache.commons.collections.MapIterator;
 import org.apache.commons.collections.map.LRUMap;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -158,6 +159,46 @@ public final class ContainerCache extends LRUMap {
             db.getReferenceCount());
       }
       this.remove(containerDBPath);
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  /**
+   * Remove a DB handler from cache.
+   *
+   * @param containerDBPath - path of the container db file.
+   */
+  public void removeFromDB(
+      String category, long containerID, String containerDBPath) {
+    lock.lock();
+    try {
+      ReferenceCountedDB db = (ReferenceCountedDB)this.get(containerDBPath);
+      if (db == null || db.getStore() == null) {
+        LOG.error("DB not exists. Container:{} ContainerPath:{}",
+            containerID, containerDBPath);
+        return;
+      }
+
+
+      db.getStore().deleteRange(category,
+          DBKey.getDeletingBeginKey(containerID),
+          DBKey.getDeletingEndKey(containerID));
+
+      db.getStore().deleteRange(category,
+          DBKey.getDeletedBeginKey(containerID),
+          DBKey.getDeletedEndKey(containerID));
+
+      db.getStore().delete(category,DBKey.getDelTxDBKey(containerID));
+      db.getStore().delete(category, DBKey.getBcsIdDBKey(containerID));
+      db.getStore().delete(category, DBKey.getBlockCountDBKey(containerID));
+      db.getStore().delete(category, DBKey.getByteUsedDBKey(containerID));
+      db.getStore().delete(category,
+          DBKey.getPendingDeleteCountDBKey(containerID));
+
+    } catch (IOException e) {
+     LOG.error("Error remove container from DB. Container:{} ContainerPath:{}",
+         containerID, containerDBPath, e);
     } finally {
       lock.unlock();
     }

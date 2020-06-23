@@ -215,10 +215,7 @@ public class TestKeyValueBlockIterator {
     createContainerWithBlocks(containerId, normalBlocks, deletedBlocks);
     String containerPath = new File(containerData.getMetadataPath())
         .getParent();
-    byte[] prefixKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-        .setContainerID(containerId)
-        .build().getDBByteKey();
+    byte[] prefixKey = DBKey.getDeletingKey(containerId);
     MetadataKeyFilters.KeyPrefixFilter filter = new MetadataKeyFilters.KeyPrefixFilter()
         .addFilter(prefixKey);
     try(KeyValueBlockIterator keyValueBlockIterator = new KeyValueBlockIterator(
@@ -277,10 +274,7 @@ public class TestKeyValueBlockIterator {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
-        byte[] blockKey = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(containerId)
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockKey,
@@ -291,11 +285,8 @@ public class TestKeyValueBlockIterator {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
-        byte[] deletingKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-            .setContainerID(blockID.getContainerID())
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] deletingKey = DBKey.getDeletingKey(
+            blockID.getContainerID(), blockID.getLocalID());
         metadataStore.getStore().put(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             deletingKey,

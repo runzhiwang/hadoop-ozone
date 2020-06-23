@@ -210,24 +210,13 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             BlockUtils.getDB(containerData, conf)) {
       for (Long blk : delTX.getLocalIDList()) {
         BatchOperation batch = new BatchOperation();
-        byte[] blkBytes = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(containerId).setBlockLocalID(blk)
-            .build().getDBByteKey();
+        byte[] blkBytes = DBKey.getBlockKey(containerId, blk);
         byte[] blkInfo = containerDB.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blkBytes);
         if (blkInfo != null) {
-          byte[] deletingKeyBytes = DBKey.newBuilder()
-              .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-              .setContainerID(containerId)
-              .setBlockLocalID(blk)
-              .build().getDBByteKey();
-
-          byte[] deletedKeyBytes = DBKey.newBuilder()
-              .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
-              .setContainerID(containerId)
-              .setBlockLocalID(blk)
-              .build().getDBByteKey();
+          byte[] deletingKeyBytes = DBKey.getDeletingKey(containerId, blk);
+          byte[] deletedKeyBytes = DBKey.getDeletedKey(containerId, blk);
 
           if (containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes) != null
               || containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletedKeyBytes) != null) {
@@ -272,18 +261,13 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       // greater.
       if (delTX.getTxID() > containerData.getDeleteTransactionId()) {
         // Update in DB pending delete key count and delete transaction ID.
-        byte[] dbKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
-            .setContainerID(containerId)
-            .build().getDBByteKey();
+        byte[] dbKey = DBKey.getDelTxDBKey(containerId);
         batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
             dbKey, Longs.toByteArray(delTX.getTxID()));
       }
 
-      byte[] pendingDeleteCountKey = DBKey.newBuilder()
-          .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
-          .setContainerID(containerId)
-          .build().getDBByteKey();
+      byte[] pendingDeleteCountKey =
+          DBKey.getPendingDeleteCountDBKey(containerId);
       batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
           pendingDeleteCountKey,
           Longs.toByteArray(

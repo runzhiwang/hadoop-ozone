@@ -265,21 +265,16 @@ import static org.junit.Assert.assertFalse;
 
         if (i >= normalBlocks) {
           // deleted key
-          byte[] deletingKey = DBKey.newBuilder()
-              .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-              .setContainerID(blockID.getContainerID())
-              .setBlockLocalID(blockID.getLocalID())
-              .build().getDBByteKey();
+          byte[] deletingKey = DBKey.getDeletingKey(blockID.getContainerID(),
+              blockID.getLocalID());
           metadataStore.getStore().put(
               RocksDB.DEFAULT_COLUMN_FAMILY,
               deletingKey,
               blockData.getProtoBufMessage().toByteArray());
         } else {
           // normal key
-          byte[] blockKey = DBKey.newBuilder()
-              .setPrefix(null).setContainerID(containerId)
-              .setBlockLocalID(blockID.getLocalID())
-              .build().getDBByteKey();
+          byte[] blockKey =
+              DBKey.getBlockKey(containerId, blockID.getLocalID());
           metadataStore.getStore().put(
               RocksDB.DEFAULT_COLUMN_FAMILY,
               blockKey,

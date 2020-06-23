@@ -285,26 +285,18 @@ public class KeyValueContainerData extends ContainerData {
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
-    byte[] containerBytesUsedKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
+    byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
         containerBytesUsedKey,
         Longs.toByteArray(getBytesUsed()));
 
-    byte[] blockCountKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.BLOCK_COUNT)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
+    byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
         blockCountKey,
         Longs.toByteArray(getKeyCount() - deletedBlockCount));
 
-    byte[] pendingDeleteCountKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
+    byte[] pendingDeleteCountKey =
+        DBKey.getPendingDeleteCountDBKey(containerID);
     batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
         pendingDeleteCountKey,
         Longs.toByteArray(getNumPendingDeletionBlocks() - deletedBlockCount));

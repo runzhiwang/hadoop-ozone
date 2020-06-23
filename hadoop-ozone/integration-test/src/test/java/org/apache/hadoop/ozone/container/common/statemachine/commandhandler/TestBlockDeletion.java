@@ -325,10 +325,8 @@ public class TestBlockDeletion {
       try(ReferenceCountedDB db =
           BlockUtils.getDB((KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
-        byte[] key = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(blockID.getContainerID())
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] key = DBKey.getBlockKey(
+            blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNotNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             key));
@@ -345,26 +343,18 @@ public class TestBlockDeletion {
       try(ReferenceCountedDB db =
           BlockUtils.getDB((KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
-        byte[] blockKey = DBKey.newBuilder()
-            .setPrefix(null).setContainerID(blockID.getContainerID())
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] blockKey = DBKey.getBlockKey(
+            blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             blockKey));
-        byte[] deletingKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
-            .setContainerID(blockID.getContainerID())
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] deletingKey = DBKey.getDeletingKey(
+            blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNull(db.getStore().get(
             RocksDB.DEFAULT_COLUMN_FAMILY,
             deletingKey));
-        byte[] deletedKey = DBKey.newBuilder()
-            .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
-            .setContainerID(blockID.getContainerID())
-            .setBlockLocalID(blockID.getLocalID())
-            .build().getDBByteKey();
+        byte[] deletedKey = DBKey.getDeletedKey(
+            blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNotNull(deletedKey);
       }
       containerIdsWithDeletedBlocks.add(blockID.getContainerID());

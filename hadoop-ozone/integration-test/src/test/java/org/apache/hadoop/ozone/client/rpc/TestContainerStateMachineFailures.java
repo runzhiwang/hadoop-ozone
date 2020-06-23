@@ -606,11 +606,7 @@ public class TestContainerStateMachineFailures {
     keyValueContainerData = (KeyValueContainerData) containerData;
     ReferenceCountedDB db = BlockUtils.
         getDB(keyValueContainerData, conf);
-    byte[] blockCommitSequenceIdKey = DBKey.newBuilder()
-        .setPrefix(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX)
-        .setContainerID(containerID)
-        .build().getDBByteKey();
-
+    byte[] blockCommitSequenceIdKey = DBKey.getBcsIdDBKey(containerID);
     // modify the bcsid for the container in the ROCKS DB thereby inducing
     // corruption
     db.getStore().put(RocksDB.DEFAULT_COLUMN_FAMILY,

@@ -81,7 +81,8 @@ public final class BlockUtils {
     Preconditions.checkNotNull(container);
     ContainerCache cache = ContainerCache.getInstance(conf);
     Preconditions.checkNotNull(cache);
-    cache.removeDB(container.getDbFile().getAbsolutePath());
+    cache.removeDB(
+        container.getDbFile().getAbsolutePath());
   }
 
   /**

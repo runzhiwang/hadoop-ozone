@@ -146,7 +146,6 @@ public final class OzoneConsts {
   public static final String PENDING_DELETE_BLOCK_COUNT =
       "#PENDINGDELETEBLOCKCOUNT";
 
-
   /**
    * OM LevelDB prefixes.
    *

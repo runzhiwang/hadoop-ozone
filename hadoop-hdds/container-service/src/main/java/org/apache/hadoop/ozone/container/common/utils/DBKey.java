@@ -17,6 +17,7 @@
 package org.apache.hadoop.ozone.container.common.utils;
 
 import com.google.common.primitives.Longs;
+import org.apache.hadoop.ozone.OzoneConsts;
 
 import java.nio.charset.StandardCharsets;
 
@@ -88,6 +89,109 @@ public class DBKey {
     start = appendLongToByteArray(byteKey, start, blockLocalID);
 
     return byteKey;
+  }
+
+  public static byte[] getDeletingKey(long containerID, long blockLocalID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+        .setContainerID(containerID)
+        .setBlockLocalID(blockLocalID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDeletingKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getBlockKey(long containerID, long blockLocalID) {
+    return DBKey.newBuilder()
+        .setPrefix(null).setContainerID(containerID)
+        .setBlockLocalID(blockLocalID)
+        .build().getDBByteKey();
+  }
+  public static byte[] getDeletingBeginKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+        .setContainerID(containerID)
+        .setBlockLocalID(0)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDeletingEndKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+        .setContainerID(containerID)
+        .setBlockLocalID(Long.MAX_VALUE)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDeletedKey(long containerID, long blockLocalID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+        .setContainerID(containerID)
+        .setBlockLocalID(blockLocalID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDeletedKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDeletedBeginKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+        .setContainerID(containerID)
+        .setBlockLocalID(0)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDeletedEndKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETED_KEY_PREFIX)
+        .setContainerID(containerID)
+        .setBlockLocalID(Long.MAX_VALUE)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getDelTxDBKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getBcsIdDBKey(long containerID) {
+     return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getBlockCountDBKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.BLOCK_COUNT)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getByteUsedDBKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.CONTAINER_BYTES_USED)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
+  }
+
+  public static byte[] getPendingDeleteCountDBKey(long containerID) {
+    return DBKey.newBuilder()
+        .setPrefix(OzoneConsts.PENDING_DELETE_BLOCK_COUNT)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
   }
 
   @Override
