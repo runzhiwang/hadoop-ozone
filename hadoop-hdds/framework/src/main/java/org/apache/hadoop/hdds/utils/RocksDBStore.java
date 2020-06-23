@@ -22,6 +22,7 @@ import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.hadoop.hdds.HddsUtils;
+import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.ratis.thirdparty.com.google.common.annotations.
     VisibleForTesting;
@@ -88,7 +89,7 @@ public class RocksDBStore implements MetadataStore {
 
       for (ColumnFamilyHandle handle : handles) {
         columnMap.put(
-            HddsServerUtil.getStringFromBytes(handle.getName()), handle);
+            StringUtils.bytes2String(handle.getName()), handle);
       }
 
       if (dbOptions.statistics() != null) {
@@ -159,7 +160,7 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public void put(byte[] category, byte[] key, byte[] value)
       throws IOException {
-    put(HddsServerUtil.getStringFromBytes(category), key, value);
+    put(StringUtils.bytes2String(category), key, value);
   }
 
 //  @Override
@@ -183,7 +184,7 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public boolean isEmpty(byte[] category) throws IOException {
-    return isEmpty(HddsServerUtil.getStringFromBytes(category));
+    return isEmpty(StringUtils.bytes2String(category));
   }
 
 //  @Override
@@ -202,7 +203,7 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public byte[] get(byte[] category, byte[] key) throws IOException {
-    return get(HddsServerUtil.getStringFromBytes(category), key);
+    return get(StringUtils.bytes2String(category), key);
   }
 
 //  @Override
@@ -221,7 +222,23 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public void delete(byte[] category, byte[] key) throws IOException {
-    delete(HddsServerUtil.getStringFromBytes(category), key);
+    delete(StringUtils.bytes2String(category), key);
+  }
+
+  @Override
+  public void deleteRange(String category, byte[] beginKey, byte[] endKey)
+      throws IOException {
+    try {
+      db.deleteRange(getColumnFamilyHandle(category), beginKey, endKey);
+    } catch (RocksDBException e) {
+      throw toIOException("Failed to deleteRange of category:" + category, e);
+    }
+  }
+
+  @Override
+  public void deleteRange(byte[] category, byte[] beginKey, byte[] endKey)
+      throws IOException {
+    deleteRange(StringUtils.bytes2String(category), beginKey, endKey);
   }
 
 //  @Override
@@ -245,7 +262,7 @@ public class RocksDBStore implements MetadataStore {
       byte[] category, byte[] startKey, int count,
       MetadataKeyFilters.MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    return getRangeKVs(HddsServerUtil.getStringFromBytes(category),
+    return getRangeKVs(StringUtils.bytes2String(category),
         startKey, count, filters);
   }
 
@@ -271,7 +288,7 @@ public class RocksDBStore implements MetadataStore {
       byte[] category, byte[] startKey, int count,
       MetadataKeyFilters.MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    return getSequentialRangeKVs(HddsServerUtil.getStringFromBytes(category),
+    return getSequentialRangeKVs(StringUtils.bytes2String(category),
         startKey, count, filters);
   }
 
@@ -401,7 +418,7 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public void compactRange(byte[] category) throws IOException {
-    compactRange(HddsServerUtil.getStringFromBytes(category));
+    compactRange(StringUtils.bytes2String(category));
   }
 
   @Override
@@ -433,7 +450,7 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public void flush(byte[] category) throws IOException {
-    flush(HddsServerUtil.getStringFromBytes(category));
+    flush(StringUtils.bytes2String(category));
   }
 
   private void deleteQuietly(File fileOrDir) {
@@ -509,7 +526,7 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public ImmutablePair<byte[], byte[]> peekAround(byte[] category, int offset,
       byte[] from) throws IOException, IllegalArgumentException {
-    return peekAround(HddsServerUtil.getStringFromBytes(category),
+    return peekAround(StringUtils.bytes2String(category),
         offset, from);
   }
 
@@ -546,7 +563,7 @@ public class RocksDBStore implements MetadataStore {
   @Override
   public void iterate(byte[] category, byte[] from, EntryConsumer consumer)
       throws IOException {
-    iterate(HddsServerUtil.getStringFromBytes(category), from, consumer);
+    iterate(StringUtils.bytes2String(category), from, consumer);
   }
 
   @Override
@@ -579,6 +596,6 @@ public class RocksDBStore implements MetadataStore {
 
   @Override
   public MetaStoreIterator<KeyValue> iterator(byte[] category) throws IOException {
-    return iterator(HddsServerUtil.getStringFromBytes(category));
+    return iterator(StringUtils.bytes2String(category));
   }
 }

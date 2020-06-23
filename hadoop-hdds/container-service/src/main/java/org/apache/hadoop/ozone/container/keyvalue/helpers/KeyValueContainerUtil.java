@@ -176,9 +176,12 @@ public final class KeyValueContainerUtil {
             Longs.fromByteArray(pendingDeleteBlockCount));
       } else {
         // Set pending deleted block count.
+        byte[] prefixKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+            .setContainerID(containerID)
+            .build().getDBByteKey();
         MetadataKeyFilters.KeyPrefixFilter filter =
-            new MetadataKeyFilters.KeyPrefixFilter()
-                .addFilter(OzoneConsts.DELETING_KEY_PREFIX);
+            new MetadataKeyFilters.KeyPrefixFilter().addFilter(prefixKey);
         int numPendingDeletionBlocks =
             containerDB.getStore().getSequentialRangeKVs(
                 RocksDB.DEFAULT_COLUMN_FAMILY,

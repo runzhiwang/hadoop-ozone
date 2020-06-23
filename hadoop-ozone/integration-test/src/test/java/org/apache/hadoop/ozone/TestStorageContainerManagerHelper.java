@@ -99,8 +99,12 @@ public class TestStorageContainerManagerHelper {
       throws IOException {
     List<String> pendingDeletionBlocks = Lists.newArrayList();
     ReferenceCountedDB meta = getContainerMetadata(containerID);
+    byte[] prefixKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+        .setContainerID(containerID)
+        .build().getDBByteKey();
     KeyPrefixFilter filter =
-        new KeyPrefixFilter().addFilter(OzoneConsts.DELETING_KEY_PREFIX);
+        new KeyPrefixFilter().addFilter(prefixKey);
     List<Map.Entry<byte[], byte[]>> kvs = meta.getStore()
         .getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
             null, Integer.MAX_VALUE, filter);
@@ -131,7 +135,8 @@ public class TestStorageContainerManagerHelper {
     List<Map.Entry<byte[], byte[]>> kvs =
         meta.getStore().getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
             null, Integer.MAX_VALUE,
-            MetadataKeyFilters.getNormalKeyFilter());
+            new MetadataKeyFilters.KeyPrefixFilter()
+                .addFilter(Longs.toByteArray(containeID)));
     kvs.forEach(entry -> {
       allBlocks.add(Longs.fromByteArray(entry.getKey()));
     });

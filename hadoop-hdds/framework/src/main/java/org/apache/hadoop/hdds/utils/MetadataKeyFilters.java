@@ -31,38 +31,9 @@ import com.google.common.base.Strings;
  */
 public final class MetadataKeyFilters {
 
-  private static KeyPrefixFilter deletingKeyFilter =
-      new MetadataKeyFilters.KeyPrefixFilter()
-          .addFilter(OzoneConsts.DELETING_KEY_PREFIX);
-
-  private static KeyPrefixFilter deletedKeyFilter =
-      new MetadataKeyFilters.KeyPrefixFilter()
-          .addFilter(OzoneConsts.DELETED_KEY_PREFIX);
-
-  private static KeyPrefixFilter normalKeyFilter =
-      new MetadataKeyFilters.KeyPrefixFilter()
-          .addFilter(OzoneConsts.DELETING_KEY_PREFIX, true)
-          .addFilter(OzoneConsts.DELETED_KEY_PREFIX, true)
-          .addFilter(OzoneConsts.DELETE_TRANSACTION_KEY_PREFIX, true)
-          .addFilter(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX, true)
-          .addFilter(OzoneConsts.BLOCK_COUNT, true)
-          .addFilter(OzoneConsts.CONTAINER_BYTES_USED, true)
-          .addFilter(OzoneConsts.PENDING_DELETE_BLOCK_COUNT, true);
-
   private MetadataKeyFilters() {
   }
 
-  public static KeyPrefixFilter getDeletingKeyFilter() {
-    return deletingKeyFilter;
-  }
-
-  public static KeyPrefixFilter getDeletedKeyFilter() {
-    return deletedKeyFilter;
-  }
-
-  public static KeyPrefixFilter getNormalKeyFilter() {
-    return normalKeyFilter;
-  }
   /**
    * Interface for levelDB key filters.
    */
@@ -92,8 +63,8 @@ public final class MetadataKeyFilters {
    */
   public static class KeyPrefixFilter implements MetadataKeyFilter {
 
-    private List<String> positivePrefixList = new ArrayList<>();
-    private List<String> negativePrefixList = new ArrayList<>();
+    private List<byte[]> positivePrefixList = new ArrayList<>();
+    private List<byte[]> negativePrefixList = new ArrayList<>();
     private boolean atleastOnePositiveMatch;
     private int keysScanned = 0;
     private int keysHinted = 0;
@@ -114,12 +85,22 @@ public final class MetadataKeyFilters {
     }
 
     public KeyPrefixFilter addFilter(String keyPrefix) {
+      addFilter(StringUtils.string2Bytes(keyPrefix), false);
+      return this;
+    }
+
+    public KeyPrefixFilter addFilter(byte[] keyPrefix) {
       addFilter(keyPrefix, false);
       return this;
     }
 
     public KeyPrefixFilter addFilter(String keyPrefix, boolean negative) {
-      Preconditions.checkArgument(!Strings.isNullOrEmpty(keyPrefix),
+      addFilter(StringUtils.string2Bytes(keyPrefix), negative);
+      return this;
+    }
+
+    public KeyPrefixFilter addFilter(byte[] keyPrefix, boolean negative) {
+      Preconditions.checkArgument(keyPrefix != null && keyPrefix.length != 0,
           "KeyPrefix is null or empty: " + keyPrefix);
       // keyPrefix which needs to be added should not be prefix of any opposing
       // filter already present. If keyPrefix is a negative filter it should not
@@ -130,14 +111,14 @@ public final class MetadataKeyFilters {
       // handled we need to add priorities.
       if (negative) {
         Preconditions.checkArgument(positivePrefixList.stream().noneMatch(
-            prefix -> prefix.startsWith(keyPrefix) || keyPrefix
-                .startsWith(prefix)),
+            prefix -> prefixMatch(prefix, keyPrefix) ||
+                prefixMatch(keyPrefix, prefix)),
             "KeyPrefix: " + keyPrefix + " already accepted.");
         this.negativePrefixList.add(keyPrefix);
       } else {
         Preconditions.checkArgument(negativePrefixList.stream().noneMatch(
-            prefix -> prefix.startsWith(keyPrefix) || keyPrefix
-                .startsWith(prefix)),
+            prefix -> prefixMatch(prefix, keyPrefix) ||
+                prefixMatch(keyPrefix, prefix)),
             "KeyPrefix: " + keyPrefix + " already rejected.");
         this.positivePrefixList.add(keyPrefix);
       }
@@ -160,8 +141,7 @@ public final class MetadataKeyFilters {
 
       accept = !positivePrefixList.isEmpty() && positivePrefixList.stream()
           .anyMatch(prefix -> {
-            byte[] prefixBytes = StringUtils.string2Bytes(prefix);
-            return prefixMatch(prefixBytes, currentKey);
+            return prefixMatch(prefix, currentKey);
           });
       if (accept) {
         keysHinted++;
@@ -172,8 +152,7 @@ public final class MetadataKeyFilters {
 
       accept = !negativePrefixList.isEmpty() && negativePrefixList.stream()
           .allMatch(prefix -> {
-            byte[] prefixBytes = StringUtils.string2Bytes(prefix);
-            return !prefixMatch(prefixBytes, currentKey);
+            return !prefixMatch(prefix, currentKey);
           });
       if (accept) {
         keysHinted++;

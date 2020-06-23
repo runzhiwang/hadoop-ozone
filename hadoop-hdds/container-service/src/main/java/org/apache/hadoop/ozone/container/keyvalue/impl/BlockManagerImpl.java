@@ -303,11 +303,15 @@ public class BlockManagerImpl implements BlockManager {
           (KeyValueContainerData) container.getContainerData();
       try (ReferenceCountedDB db = BlockUtils.getDB(cData, config)) {
         result = new ArrayList<>();
-        byte[] startKeyInBytes = Longs.toByteArray(startLocalID);
+        byte[] startKeyInBytes = DBKey.newBuilder()
+            .setContainerID(cData.getContainerID())
+            .setBlockLocalID(startLocalID)
+            .build().getDBByteKey();
         List<Map.Entry<byte[], byte[]>> range = db.getStore()
             .getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
                 startKeyInBytes, count,
-                MetadataKeyFilters.getNormalKeyFilter());
+                new MetadataKeyFilters.KeyPrefixFilter()
+                    .addFilter(Longs.toByteArray(cData.getContainerID())));
         for (Map.Entry<byte[], byte[]> entry : range) {
           BlockData value = BlockUtils.getBlockData(entry.getValue());
           BlockData data = new BlockData(value.getBlockID());
