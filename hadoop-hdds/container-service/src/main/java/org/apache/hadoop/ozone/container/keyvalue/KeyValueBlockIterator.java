@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.container.keyvalue;
 
+import com.google.common.primitives.Longs;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -45,9 +46,7 @@ import java.util.NoSuchElementException;
 
 /**
  * Block Iterator for KeyValue Container. This block iterator returns blocks
- * which match with the {@link MetadataKeyFilters.KeyPrefixFilter}. If no
- * filter is specified, then default filter used is
- * {@link MetadataKeyFilters#getNormalKeyFilter()}
+ * which match with the {@link MetadataKeyFilters.KeyPrefixFilter}.
  */
 @InterfaceAudience.Public
 public class KeyValueBlockIterator implements BlockIterator<BlockData>,
@@ -58,8 +57,6 @@ public class KeyValueBlockIterator implements BlockIterator<BlockData>,
 
   private MetaStoreIterator<KeyValue> blockIterator;
   private final ReferenceCountedDB db;
-  private static KeyPrefixFilter defaultBlockFilter = MetadataKeyFilters
-      .getNormalKeyFilter();
   private KeyPrefixFilter blockFilter;
   private BlockData nextBlock;
   private long containerId;
@@ -73,7 +70,8 @@ public class KeyValueBlockIterator implements BlockIterator<BlockData>,
 
   public KeyValueBlockIterator(long id, File path)
       throws IOException {
-    this(id, path, defaultBlockFilter);
+    this(id, path, new MetadataKeyFilters.KeyPrefixFilter()
+        .addFilter(Longs.toByteArray(id)));
   }
 
   /**

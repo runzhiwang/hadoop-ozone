@@ -215,9 +215,14 @@ public class TestKeyValueBlockIterator {
     createContainerWithBlocks(containerId, normalBlocks, deletedBlocks);
     String containerPath = new File(containerData.getMetadataPath())
         .getParent();
+    byte[] prefixKey = DBKey.newBuilder()
+        .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+        .setContainerID(containerId)
+        .build().getDBByteKey();
+    MetadataKeyFilters.KeyPrefixFilter filter = new MetadataKeyFilters.KeyPrefixFilter()
+        .addFilter(prefixKey);
     try(KeyValueBlockIterator keyValueBlockIterator = new KeyValueBlockIterator(
-        containerId, new File(containerPath), MetadataKeyFilters
-        .getDeletingKeyFilter())) {
+        containerId, new File(containerPath), filter)) {
 
       int counter = 5;
       while (keyValueBlockIterator.hasNext()) {

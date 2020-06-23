@@ -458,8 +458,4 @@ public final class HddsServerUtil {
     }
     return metricsSystem;
   }
-
-  public static String getStringFromBytes(byte[] bytes) {
-    return new String(bytes, StandardCharsets.UTF_8);
-  }
 }

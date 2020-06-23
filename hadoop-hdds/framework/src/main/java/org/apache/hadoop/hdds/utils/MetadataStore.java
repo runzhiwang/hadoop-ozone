@@ -83,6 +83,10 @@ public interface MetadataStore extends Closeable{
 
   void delete(byte[] category, byte[] key) throws IOException;
 
+  void deleteRange(String category, byte[] beginKey, byte[] endKey) throws IOException;
+
+  void deleteRange(byte[] category, byte[] beginKey, byte[] endKey) throws IOException;
+
   /**
    * Returns a certain range of key value pairs as a list based on a
    * startKey or count. Further a {@link MetadataKeyFilter} can be added to

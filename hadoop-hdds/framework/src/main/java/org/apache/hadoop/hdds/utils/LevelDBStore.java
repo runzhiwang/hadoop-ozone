@@ -19,6 +19,7 @@
 package org.apache.hadoop.hdds.utils;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters.MetadataKeyFilter;
 import org.fusesource.leveldbjni.JniDBFactory;
 import org.iq80.leveldb.DB;
@@ -113,7 +114,7 @@ public class LevelDBStore implements MetadataStore {
   @Override
   public void put(byte[] category, byte[] key, byte[] value)
       throws IOException {
-    put(HddsServerUtil.getStringFromBytes(category), key, value);
+    put(StringUtils.bytes2String(category), key, value);
   }
 
   /**
@@ -135,7 +136,7 @@ public class LevelDBStore implements MetadataStore {
 
   @Override
   public byte[] get(byte[] category, byte[] key) throws IOException {
-    return get(HddsServerUtil.getStringFromBytes(category), key);
+    return get(StringUtils.bytes2String(category), key);
   }
 
   /**
@@ -155,7 +156,17 @@ public class LevelDBStore implements MetadataStore {
 
   @Override
   public void delete(byte[] category, byte[] key) throws IOException {
-    delete(HddsServerUtil.getStringFromBytes(category), key);
+    delete(StringUtils.bytes2String(category), key);
+  }
+
+  @Override
+  public void deleteRange(String category, byte[] beginKey, byte[] endKey)
+      throws IOException {
+  }
+
+  @Override
+  public void deleteRange(byte[] category, byte[] beginKey, byte[] endKey)
+      throws IOException {
   }
 
   /**
@@ -198,7 +209,7 @@ public class LevelDBStore implements MetadataStore {
 
   @Override
   public boolean isEmpty(byte[] category) throws IOException {
-    return isEmpty(HddsServerUtil.getStringFromBytes(category));
+    return isEmpty(StringUtils.bytes2String(category));
   }
 
   /**
@@ -301,7 +312,7 @@ public class LevelDBStore implements MetadataStore {
   @Override
   public ImmutablePair<byte[], byte[]> peekAround(byte[] category, int offset,
       byte[] from) throws IOException, IllegalArgumentException {
-    return peekAround(HddsServerUtil.getStringFromBytes(category), offset, from);
+    return peekAround(StringUtils.bytes2String(category), offset, from);
   }
 
 //  @Override
@@ -347,7 +358,7 @@ public class LevelDBStore implements MetadataStore {
   @Override
   public void iterate(byte[] category, byte[] from, EntryConsumer consumer)
       throws IOException {
-    iterate(HddsServerUtil.getStringFromBytes(category), from, consumer);
+    iterate(StringUtils.bytes2String(category), from, consumer);
   }
 
   /**
@@ -374,7 +385,7 @@ public class LevelDBStore implements MetadataStore {
 
   @Override
   public void compactRange(byte[] category) throws IOException {
-    compactRange(HddsServerUtil.getStringFromBytes(category));
+    compactRange(StringUtils.bytes2String(category));
   }
 
   @Override
@@ -443,7 +454,7 @@ public class LevelDBStore implements MetadataStore {
   public List<Entry<byte[], byte[]>> getRangeKVs(byte[] category,
       byte[] startKey, int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    return getRangeKVs(HddsServerUtil.getStringFromBytes(category),
+    return getRangeKVs(StringUtils.bytes2String(category),
         startKey, count, filters);
   }
 
@@ -467,7 +478,7 @@ public class LevelDBStore implements MetadataStore {
   public List<Entry<byte[], byte[]>> getSequentialRangeKVs(byte[] category,
       byte[] startKey, int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    return getSequentialRangeKVs(HddsServerUtil.getStringFromBytes(category),
+    return getSequentialRangeKVs(StringUtils.bytes2String(category),
         startKey, count, filters);
 //    throw new IOException("getSequentialRangeKVs with category parameter not" +
 //        "supported in LevelDBStore");
@@ -595,7 +606,7 @@ public class LevelDBStore implements MetadataStore {
   @Override
   public MetaStoreIterator<KeyValue> iterator(byte[] category)
       throws IOException {
-    return iterator(HddsServerUtil.getStringFromBytes(category));
+    return iterator(StringUtils.bytes2String(category));
 //    throw new IOException(
 //        "iterator with category parameter not supported in LevelDBStore");
   }

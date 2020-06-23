@@ -55,10 +55,6 @@ public class DBKey {
     return blockLocalID;
   }
 
-  public int getByteArrayLen() {
-    return byteArrayLen;
-  }
-
   private int appendLongToByteArray(byte[] array, int start, long num) {
     if (num == -1) {
       return start;

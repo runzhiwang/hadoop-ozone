@@ -256,8 +256,11 @@ public class BlockDeletingService extends BackgroundService {
       // Scan container's db and get list of under deletion blocks
       try (ReferenceCountedDB meta = BlockUtils.getDB(containerData, conf)) {
         // # of blocks to delete is throttled
-        KeyPrefixFilter filter =
-            new KeyPrefixFilter().addFilter(OzoneConsts.DELETING_KEY_PREFIX);
+        byte[] prefixKey = DBKey.newBuilder()
+            .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+            .setContainerID(containerData.getContainerID())
+            .build().getDBByteKey();
+        KeyPrefixFilter filter = new KeyPrefixFilter().addFilter(prefixKey);
         List<Map.Entry<byte[], byte[]>> toDeleteBlocks =
             meta.getStore().getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, blockLimitPerTask,
                 filter);
