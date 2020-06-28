@@ -52,6 +52,10 @@ public class ReferenceCountedDB implements Closeable {
     return referenceCount.get();
   }
 
+  public String getContainerDBPath() {
+    return containerDBPath;
+  }
+
   public void incrementReference() {
     this.referenceCount.incrementAndGet();
     if (LOG.isTraceEnabled()) {
