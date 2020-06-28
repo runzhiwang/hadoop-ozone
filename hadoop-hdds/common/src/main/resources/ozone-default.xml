@@ -2524,4 +2524,20 @@
       Timeout for the request submitted directly to Ratis in datanode.
     </description>
   </property>
+  <property>
+    <name>ozone.datanode.rocksdb.container.limit</name>
+    <value>2000</value>
+    <tag>OZONE, DATANODE, ROCKSDB</tag>
+    <description>
+      Max number of container per rocksdb can contain.
+    </description>
+  </property>
+  <property>
+    <name>ozone.datanode.rocksdb.columnfamily.limit</name>
+    <value>200</value>
+    <tag>OZONE, DATANODE, ROCKSDB</tag>
+    <description>
+      Max number of column family per rocksdb can contain.
+    </description>
+  </property>
 </configuration>
