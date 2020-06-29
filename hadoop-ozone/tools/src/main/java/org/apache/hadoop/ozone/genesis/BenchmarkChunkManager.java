@@ -33,6 +33,7 @@ import org.apache.hadoop.ozone.common.ChunkBuffer;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.ImmutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -99,6 +100,7 @@ public class BenchmarkChunkManager {
     private ChunkBuffer buffer;
     private VolumeSet volumeSet;
     private OzoneConfiguration config;
+    private DBManager dbManager;
 
     private static File getTestDir() throws IOException {
       File dir = new File(DEFAULT_TEST_DATA_DIR).getAbsoluteFile();
@@ -119,6 +121,7 @@ public class BenchmarkChunkManager {
 
       byte[] arr = randomAlphanumeric(chunkSize).getBytes(UTF_8);
       buffer = ChunkBuffer.wrap(ByteBuffer.wrap(arr));
+      dbManager = new DBManager(volumeSet.getVolumesList(), config);
     }
 
     @TearDown(Level.Iteration)
@@ -155,7 +158,8 @@ public class BenchmarkChunkManager {
             DATANODE_ID);
     KeyValueContainer container =
         new KeyValueContainer(containerData, state.config);
-    container.create(state.volumeSet, (volumes, any) -> volumes.get(0), SCM_ID);
+    container.create(state.dbManager, state.volumeSet,
+        (volumes, any) -> volumes.get(0), SCM_ID);
 
     final long blockCount = CONTAINER_SIZE / BLOCK_SIZE;
     final long chunkCount = BLOCK_SIZE / state.chunkSize;

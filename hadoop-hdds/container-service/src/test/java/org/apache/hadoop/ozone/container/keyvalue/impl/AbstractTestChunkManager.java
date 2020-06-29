@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -62,6 +63,7 @@ public abstract class AbstractTestChunkManager {
   private ChunkInfo chunkInfo;
   private ByteBuffer data;
   private byte[] header;
+  private DBManager dbManager;
 
   @Rule
   public TemporaryFolder folder = new TemporaryFolder();
@@ -95,7 +97,8 @@ public abstract class AbstractTestChunkManager {
 
     keyValueContainer = new KeyValueContainer(keyValueContainerData, config);
 
-    keyValueContainer.create(volumeSet, volumeChoosingPolicy,
+    dbManager = new DBManager(volumeSet.getVolumesList(), config);
+    keyValueContainer.create(dbManager, volumeSet, volumeChoosingPolicy,
         UUID.randomUUID().toString());
 
     header = "my header".getBytes(UTF_8);

@@ -37,6 +37,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -102,6 +103,8 @@ public class TestContainerPersistence {
   private static VolumeChoosingPolicy volumeChoosingPolicy;
   private static BlockManager blockManager;
   private static ChunkManager chunkManager;
+  private static DBManager dbManager;
+
   @Rule
   public ExpectedException exception = ExpectedException.none();
   /**
@@ -146,6 +149,8 @@ public class TestContainerPersistence {
       StorageLocation location = StorageLocation.parse(dir);
       FileUtils.forceMkdir(new File(location.getNormalizedUri()));
     }
+
+    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
   }
 
   @After
@@ -181,7 +186,8 @@ public class TestContainerPersistence {
     data.addMetadata("VOLUME", "shire");
     data.addMetadata("owner)", "bilbo");
     KeyValueContainer container = new KeyValueContainer(data, conf);
-    container.create(volumeSet, volumeChoosingPolicy, SCM_ID);
+    container.create(
+        dbManager, volumeSet, volumeChoosingPolicy, SCM_ID);
     commitBytesBefore = container.getContainerData()
         .getVolume().getCommittedBytes();
     cSet.addContainer(container);

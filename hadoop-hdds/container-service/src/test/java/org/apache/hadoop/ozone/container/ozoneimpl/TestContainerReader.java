@@ -31,6 +31,7 @@ import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -48,6 +49,7 @@ import org.rocksdb.RocksDB;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -67,7 +69,7 @@ public class TestContainerReader {
   private HddsVolume hddsVolume;
   private ContainerSet containerSet;
   private ConfigurationSource conf;
-
+  private DBManager dbManager;
 
   private RoundRobinVolumeChoosingPolicy volumeChoosingPolicy;
   private UUID datanodeId;
@@ -93,6 +95,8 @@ public class TestContainerReader {
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))
         .thenReturn(hddsVolume);
 
+    dbManager = new DBManager(Arrays.asList(hddsVolume), conf);
+
     for (int i=0; i<2; i++) {
       KeyValueContainerData keyValueContainerData = new KeyValueContainerData(i,
           ChunkLayOutVersion.FILE_PER_BLOCK,
@@ -102,7 +106,8 @@ public class TestContainerReader {
       KeyValueContainer keyValueContainer =
           new KeyValueContainer(keyValueContainerData,
               conf);
-      keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+      keyValueContainer.create(
+          dbManager, volumeSet, volumeChoosingPolicy, scmId);
 
 
       List<Long> blkNames;

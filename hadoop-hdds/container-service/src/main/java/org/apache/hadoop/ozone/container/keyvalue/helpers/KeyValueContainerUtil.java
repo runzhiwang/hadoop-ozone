@@ -32,7 +32,9 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
+import org.apache.hadoop.ozone.container.common.utils.DBCategory;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueBlockIterator;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.hdds.utils.MetadataStore;
@@ -66,8 +68,10 @@ public final class KeyValueContainerUtil {
    * @param containerMetaDataPath
    * @throws IOException
    */
-  public static void createContainerMetaData(File containerMetaDataPath, File
-      chunksPath, File dbFile, ConfigurationSource conf) throws IOException {
+  public static DBCategory createContainerMetaData(
+      DBManager dbManager, String hddsVolumeDir, File containerMetaDataPath,
+      File chunksPath, File dbFile, ConfigurationSource conf)
+      throws IOException {
     Preconditions.checkNotNull(containerMetaDataPath);
     Preconditions.checkNotNull(conf);
 
@@ -94,6 +98,9 @@ public final class KeyValueContainerUtil {
         new ReferenceCountedDB(store, dbFile.getAbsolutePath());
     //add db handler into cache
     BlockUtils.addDB(db, dbFile.getAbsolutePath(), conf);
+
+    DBCategory dbCategory = dbManager.allocateDB(hddsVolumeDir);
+    return dbCategory;
   }
 
   /**
