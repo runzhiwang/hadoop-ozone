@@ -50,6 +50,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -131,8 +132,10 @@ public class TestBlockDeletingService {
       MutableConfigurationSource conf, int numOfContainers,
       int numOfBlocksPerContainer,
       int numOfChunksPerBlock) throws IOException {
+    conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
+    MutableVolumeSet volumeSet = new MutableVolumeSet(scmId, clusterID, conf);
+    DBManager dbManager = new DBManager(volumeSet.getVolumesList(), conf);
     for (int x = 0; x < numOfContainers; x++) {
-      conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
       long containerID = ContainerTestHelper.getTestContainerID();
       KeyValueContainerData data = new KeyValueContainerData(containerID,
           layout,
@@ -140,7 +143,7 @@ public class TestBlockDeletingService {
           UUID.randomUUID().toString());
       data.closeContainer();
       KeyValueContainer container = new KeyValueContainer(data, conf);
-      container.create(new MutableVolumeSet(scmId, clusterID, conf),
+      container.create(dbManager, volumeSet,
           new RoundRobinVolumeChoosingPolicy(), scmId);
       containerSet.addContainer(container);
       data = (KeyValueContainerData) containerSet.getContainer(

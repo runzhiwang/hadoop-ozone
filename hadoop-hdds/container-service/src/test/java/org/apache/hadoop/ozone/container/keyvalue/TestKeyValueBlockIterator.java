@@ -38,6 +38,7 @@ import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -69,6 +70,7 @@ public class TestKeyValueBlockIterator {
   private MutableVolumeSet volumeSet;
   private OzoneConfiguration conf;
   private File testRoot;
+  private DBManager dbManager;
 
   private final ChunkLayOutVersion layout;
 
@@ -90,6 +92,7 @@ public class TestKeyValueBlockIterator {
     conf = new OzoneConfiguration();
     conf.set(HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
   }
 
 
@@ -255,8 +258,9 @@ public class TestKeyValueBlockIterator {
         (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(),
         UUID.randomUUID().toString());
     container = new KeyValueContainer(containerData, conf);
-    container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(), UUID
-        .randomUUID().toString());
+    container.create(dbManager, volumeSet,
+        new RoundRobinVolumeChoosingPolicy(),
+        UUID.randomUUID().toString());
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
         conf)) {
 

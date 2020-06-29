@@ -69,7 +69,7 @@ public abstract class Handler {
       final ContainerType containerType, final ConfigurationSource config,
       final String datanodeId, final ContainerSet contSet,
       final VolumeSet volumeSet, final ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender) {
+      Consumer<ContainerReplicaProto> icrSender) throws IOException {
     switch (containerType) {
     case KeyValueContainer:
       return new KeyValueHandler(config,

@@ -44,6 +44,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -101,6 +102,7 @@ public class TestHddsDispatcher {
     conf.set(HDDS_DATANODE_DIR_KEY, testDir);
     DatanodeDetails dd = randomDatanodeDetails();
     MutableVolumeSet volumeSet = new MutableVolumeSet(dd.getUuidString(), conf);
+    DBManager dbManager = new DBManager(volumeSet.getVolumesList(), conf);
 
     try {
       UUID scmId = UUID.randomUUID();
@@ -116,8 +118,8 @@ public class TestHddsDispatcher {
           (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(),
           dd.getUuidString());
       Container container = new KeyValueContainer(containerData, conf);
-      container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
-          scmId.toString());
+      container.create(dbManager, volumeSet,
+          new RoundRobinVolumeChoosingPolicy(), scmId.toString());
       containerSet.addContainer(container);
       ContainerMetrics metrics = ContainerMetrics.create(conf);
       Map<ContainerType, Handler> handlers = Maps.newHashMap();

@@ -45,6 +45,8 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerPacker;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
+import org.apache.hadoop.ozone.container.common.utils.DBCategory;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -97,7 +99,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
   }
 
   @Override
-  public void create(VolumeSet volumeSet, VolumeChoosingPolicy
+  public void create(DBManager dbManager, VolumeSet volumeSet, VolumeChoosingPolicy
       volumeChoosingPolicy, String scmId) throws StorageContainerException {
     Preconditions.checkNotNull(volumeChoosingPolicy, "VolumeChoosingPolicy " +
         "cannot be null");
@@ -127,13 +129,15 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
       //Create Metadata path chunks path and metadata db
       File dbFile = getContainerDBFile();
-      KeyValueContainerUtil.createContainerMetaData(containerMetaDataPath,
-          chunksPath, dbFile, config);
+      DBCategory dbCategory = KeyValueContainerUtil.createContainerMetaData(
+          dbManager, hddsVolumeDir, containerMetaDataPath, chunksPath, dbFile,
+          config);
 
       //Set containerData for the KeyValueContainer.
       containerData.setChunksPath(chunksPath.getPath());
-      containerData.setDbPath(dbFile.getAbsolutePath());
-      containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
+
+      containerData.setDbPath(dbCategory.getDbPath());
+      containerData.setCategoryInDB(dbCategory.getCategoryInDB());
       containerData.setVolume(containerVolume);
 
       // Create .container file

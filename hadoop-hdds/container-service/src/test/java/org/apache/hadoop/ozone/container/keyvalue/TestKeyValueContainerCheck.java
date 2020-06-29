@@ -33,6 +33,7 @@ import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -81,6 +82,7 @@ import static org.junit.Assert.assertFalse;
   private OzoneConfiguration conf;
   private File testRoot;
   private ChunkManager chunkManager;
+  private DBManager dbManager;
 
   public TestKeyValueContainerCheck(ChunkLayoutTestInfo chunkManagerTestInfo) {
     this.chunkManagerTestInfo = chunkManagerTestInfo;
@@ -101,6 +103,7 @@ import static org.junit.Assert.assertFalse;
     chunkManagerTestInfo.updateConfig(conf);
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
     chunkManager = chunkManagerTestInfo.createChunkManager(true, null);
+    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
   }
 
   @After public void teardown() {
@@ -226,7 +229,8 @@ import static org.junit.Assert.assertFalse;
         chunksPerBlock * chunkLen * totalBlocks,
         UUID.randomUUID().toString(), UUID.randomUUID().toString());
     container = new KeyValueContainer(containerData, conf);
-    container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
+    container.create(dbManager, volumeSet,
+        new RoundRobinVolumeChoosingPolicy(),
         UUID.randomUUID().toString());
     try (ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
         conf)) {

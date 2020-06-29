@@ -38,6 +38,7 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -89,6 +90,8 @@ public class TestOzoneContainer {
 
   private final ChunkLayOutVersion layout;
 
+  private DBManager dbManager;
+
   public TestOzoneContainer(ChunkLayOutVersion layout) {
     this.layout = layout;
   }
@@ -108,6 +111,7 @@ public class TestOzoneContainer {
     commitSpaceMap = new HashMap<String, Long>();
     volumeSet = new MutableVolumeSet(datanodeDetails.getUuidString(), conf);
     volumeChoosingPolicy = new RoundRobinVolumeChoosingPolicy();
+    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
   }
 
   @After
@@ -140,7 +144,7 @@ public class TestOzoneContainer {
           datanodeDetails.getUuidString());
       keyValueContainer = new KeyValueContainer(
           keyValueContainerData, conf);
-      keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+      keyValueContainer.create(dbManager, volumeSet, volumeChoosingPolicy, scmId);
       myVolume = keyValueContainer.getContainerData().getVolume();
 
       freeBytes = addBlocks(keyValueContainer, 2, 3);
@@ -235,7 +239,8 @@ public class TestOzoneContainer {
     // we expect an out of space Exception
     StorageContainerException e = LambdaTestUtils.intercept(
         StorageContainerException.class,
-        () -> keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId)
+        () -> keyValueContainer.create(
+            dbManager, volumeSet, volumeChoosingPolicy, scmId)
     );
     if (!DISK_OUT_OF_SPACE.equals(e.getResult())) {
       LOG.info("Unexpected error during container creation", e);
