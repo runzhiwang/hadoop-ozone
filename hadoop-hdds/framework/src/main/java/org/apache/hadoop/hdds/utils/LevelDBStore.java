@@ -94,6 +94,10 @@ public class LevelDBStore implements MetadataStore {
     }
   }
 
+  @Override
+  public void createCategories(List<byte[]> columnFamilyNames) throws IOException {
+  }
+
   /**
    * Puts a Key into file.
    *

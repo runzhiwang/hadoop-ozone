@@ -45,6 +45,7 @@ import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -95,7 +96,7 @@ public class TestBlockManagerImpl {
         .toString()).build();
 
     volumeSet = mock(MutableVolumeSet.class);
-    dbManager = new DBManager(volumeSet.getVolumesList(), config);
+    dbManager = new DBManager(Arrays.asList(hddsVolume), config);
 
     volumeChoosingPolicy = mock(RoundRobinVolumeChoosingPolicy.class);
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))
