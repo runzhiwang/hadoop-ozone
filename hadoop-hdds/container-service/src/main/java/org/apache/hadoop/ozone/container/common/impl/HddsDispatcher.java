@@ -545,12 +545,13 @@ public class HddsDispatcher implements ContainerDispatcher, Auditor {
   }
 
   @Override
-  public void setScmId(String scmId) {
+  public void setScmId(String scmId) throws IOException {
     Preconditions.checkNotNull(scmId, "scmId Cannot be null");
     if (this.scmID == null) {
       this.scmID = scmId;
       for (Map.Entry<ContainerType, Handler> handlerMap : handlers.entrySet()) {
         handlerMap.getValue().setScmID(scmID);
+        handlerMap.getValue().initDBManager(scmID);
       }
     }
   }

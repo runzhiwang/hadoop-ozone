@@ -69,10 +69,8 @@ import org.apache.hadoop.test.GenericTestUtils.LogCapturer;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_CONTAINER_LIMIT_PER_INTERVAL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.rocksdb.RocksDB;
@@ -97,6 +95,8 @@ public class TestBlockDeletingService {
   private Handler handler;
 
   private final ChunkLayOutVersion layout;
+
+  private DBManager dbManager;
 
   public TestBlockDeletingService(ChunkLayOutVersion layout) {
     this.layout = layout;
@@ -123,6 +123,13 @@ public class TestBlockDeletingService {
     FileUtils.deleteDirectory(testRoot);
   }
 
+  @After
+  public void cleanupDB() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
+  }
+
   /**
    * A helper method to create some blocks and put them under deletion
    * state for testing. This method directly updates container.db and
@@ -134,7 +141,7 @@ public class TestBlockDeletingService {
       int numOfChunksPerBlock) throws IOException {
     conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
     MutableVolumeSet volumeSet = new MutableVolumeSet(scmId, clusterID, conf);
-    DBManager dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
     for (int x = 0; x < numOfContainers; x++) {
       long containerID = ContainerTestHelper.getTestContainerID();
       KeyValueContainerData data = new KeyValueContainerData(containerID,
@@ -366,6 +373,9 @@ public class TestBlockDeletingService {
     log.stopCapturing();
     svc.shutdown();
 
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     // test for normal case that doesn't have timeout limitation
     timeout  = 0;
     createToDeleteBlocks(containerSet, conf, 1, 3, 1);

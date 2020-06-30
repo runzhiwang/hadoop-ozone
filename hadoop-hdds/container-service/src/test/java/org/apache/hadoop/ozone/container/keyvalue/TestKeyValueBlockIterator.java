@@ -70,6 +70,7 @@ public class TestKeyValueBlockIterator {
   private MutableVolumeSet volumeSet;
   private OzoneConfiguration conf;
   private File testRoot;
+  private String scmID = UUID.randomUUID().toString();
   private DBManager dbManager;
 
   private final ChunkLayOutVersion layout;
@@ -92,7 +93,7 @@ public class TestKeyValueBlockIterator {
     conf = new OzoneConfiguration();
     conf.set(HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, conf);
   }
 
 
@@ -260,7 +261,7 @@ public class TestKeyValueBlockIterator {
     container = new KeyValueContainer(containerData, conf);
     container.create(dbManager, volumeSet,
         new RoundRobinVolumeChoosingPolicy(),
-        UUID.randomUUID().toString());
+        scmID);
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
         conf)) {
 

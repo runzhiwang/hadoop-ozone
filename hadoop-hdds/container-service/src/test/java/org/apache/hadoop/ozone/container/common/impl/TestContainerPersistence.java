@@ -125,7 +125,7 @@ public class TestContainerPersistence {
   }
 
   @BeforeClass
-  public static void init() {
+  public static void init() throws IOException {
     conf = new OzoneConfiguration();
     hddsPath = GenericTestUtils
         .getTempPath(TestContainerPersistence.class.getSimpleName());
@@ -149,13 +149,13 @@ public class TestContainerPersistence {
       StorageLocation location = StorageLocation.parse(dir);
       FileUtils.forceMkdir(new File(location.getNormalizedUri()));
     }
-
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(SCM_ID, conf);
   }
 
   @After
   public void cleanupDir() throws IOException {
     // Clean up SCM metadata
+    dbManager.clean();
     log.info("Deleting {}", hddsPath);
     FileUtils.deleteDirectory(new File(hddsPath));
 

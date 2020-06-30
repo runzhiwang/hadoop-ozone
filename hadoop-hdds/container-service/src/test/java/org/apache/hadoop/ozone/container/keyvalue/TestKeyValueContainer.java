@@ -128,7 +128,7 @@ public class TestKeyValueContainer {
 
     keyValueContainer = new KeyValueContainer(keyValueContainerData, conf);
 
-    dbManager = new DBManager(Arrays.asList(hddsVolume), conf);
+    dbManager = new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmId, conf);
   }
 
   @Test

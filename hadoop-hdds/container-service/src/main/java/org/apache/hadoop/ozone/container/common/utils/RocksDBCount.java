@@ -87,7 +87,7 @@ public class RocksDBCount {
 
   private int getRocksDBCountFromDir() {
     File rocksdbDir = new File(
-        file.getParentFile().getAbsolutePath() + OzoneConsts.ROCKSDB_DIR);
+        file.getParentFile().getAbsolutePath() + File.separator + OzoneConsts.ROCKSDB_DIR);
     if (!rocksdbDir.exists()) {
       return 0;
     }

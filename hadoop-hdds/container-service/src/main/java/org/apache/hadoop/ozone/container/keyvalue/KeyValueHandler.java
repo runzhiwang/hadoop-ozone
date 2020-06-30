@@ -114,11 +114,19 @@ public class KeyValueHandler extends Handler {
   // A lock that is held during container creation.
   private final AutoCloseableLock containerCreationLock;
 
-  private final DBManager dbManager;
+  private DBManager dbManager;
 
   public KeyValueHandler(ConfigurationSource config, String datanodeId,
       ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender) throws IOException {
+      Consumer<ContainerReplicaProto> icrSender)
+      throws IOException {
+    this(config, datanodeId, contSet, volSet, metrics, icrSender, null);
+  }
+
+  public KeyValueHandler(ConfigurationSource config, String datanodeId,
+      ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
+      Consumer<ContainerReplicaProto> icrSender, DBManager dbManager)
+      throws IOException {
     super(config, datanodeId, contSet, volSet, metrics, icrSender);
     containerType = ContainerType.KeyValueContainer;
     blockManager = new BlockManagerImpl(config);
@@ -139,7 +147,14 @@ public class KeyValueHandler extends Handler {
     byteBufferToByteString =
         ByteStringConversion.createByteBufferConversion(conf);
 
-    dbManager = new DBManager(volSet.getVolumesList(), config);
+    this.dbManager = dbManager;
+  }
+
+  @Override
+  public void initDBManager(String scmID) throws IOException {
+    if (dbManager == null) {
+      dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, conf);
+    }
   }
 
   @VisibleForTesting
@@ -149,6 +164,12 @@ public class KeyValueHandler extends Handler {
 
   @Override
   public void stop() {
+    if (dbManager != null) {
+      try {
+        dbManager.close();
+      } catch (IOException e) {
+      }
+    }
   }
 
   @Override

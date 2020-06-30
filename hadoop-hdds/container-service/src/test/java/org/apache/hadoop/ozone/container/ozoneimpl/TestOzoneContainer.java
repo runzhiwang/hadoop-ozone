@@ -111,11 +111,13 @@ public class TestOzoneContainer {
     commitSpaceMap = new HashMap<String, Long>();
     volumeSet = new MutableVolumeSet(datanodeDetails.getUuidString(), conf);
     volumeChoosingPolicy = new RoundRobinVolumeChoosingPolicy();
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
   }
 
   @After
   public void cleanUp() throws Exception {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     if (volumeSet != null) {
       volumeSet.shutdown();
       volumeSet = null;
@@ -129,6 +131,8 @@ public class TestOzoneContainer {
       volume.format(UUID.randomUUID().toString());
       commitSpaceMap.put(getVolumeKey(volume), Long.valueOf(0));
     }
+
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
 
     // Add containers to disk
     for (int i = 0; i < numTestContainers; i++) {
@@ -231,6 +235,9 @@ public class TestOzoneContainer {
       // eat up 10 bytes more, now available space is less than 1 container
       volume.incCommittedBytes(10);
     }
+
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
+
     keyValueContainerData = new KeyValueContainerData(99,
         layout, containerSize,
         UUID.randomUUID().toString(), datanodeDetails.getUuidString());
