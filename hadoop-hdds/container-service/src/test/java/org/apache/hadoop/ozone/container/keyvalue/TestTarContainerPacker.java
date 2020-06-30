@@ -135,7 +135,6 @@ public class TestTarContainerPacker {
         -1, UUID.randomUUID().toString(), UUID.randomUUID().toString());
     containerData.setChunksPath(dataDir.toString());
     containerData.setMetadataPath(dbDir.getParent().toString());
-    containerData.setDbFile(dbDir.toFile());
     containerData.setDbPath(dbDir.toFile().getAbsolutePath());
     containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
 
