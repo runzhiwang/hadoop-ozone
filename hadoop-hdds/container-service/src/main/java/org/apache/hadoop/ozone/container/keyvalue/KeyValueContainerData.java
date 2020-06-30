@@ -66,6 +66,7 @@ public class KeyValueContainerData extends ContainerData {
   //Type of DB used to store key to chunks mapping
   private String containerDBType;
 
+  private File dbFile = null;
   private String dbPath;
   private String categoryInDB;
   /**
@@ -111,6 +112,10 @@ public class KeyValueContainerData extends ContainerData {
   }
 
 
+  public void setDbFile(File containerDbFile) {
+    this.dbFile = containerDbFile;
+  }
+
   /**
    * Sets Container dbPath. This should be called only during creation of
    * KeyValue container.
@@ -133,7 +138,7 @@ public class KeyValueContainerData extends ContainerData {
    * @return dbFile
    */
   public File getDbFile() {
-    return new File(dbPath);
+    return dbFile;
   }
 
   public String getDbPath() {

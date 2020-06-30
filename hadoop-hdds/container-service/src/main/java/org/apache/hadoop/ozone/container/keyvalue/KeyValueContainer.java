@@ -140,6 +140,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       //Set containerData for the KeyValueContainer.
       containerData.setChunksPath(chunksPath.getPath());
       containerData.setContainerDBType(impl);
+      containerData.setDbFile(dbFile);
       containerData.setDbPath(dbCategory.getDbPath());
       containerData.setCategoryInDB(dbCategory.getCategoryInDB());
       containerData.setVolume(containerVolume);
@@ -198,6 +199,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
     //Set containerData for the KeyValueContainer.
     containerData.setMetadataPath(containerMetaDataPath.getPath());
     containerData.setChunksPath(chunksPath.getPath());
+    containerData.setDbFile(dbFile);
     containerData.setDbPath(dbFile.getAbsolutePath());
     containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
     containerData.setVolume(containerVolume);

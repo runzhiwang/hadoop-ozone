@@ -228,6 +228,7 @@ public class KeyValueContainerCheck {
       throw new IOException(dbFileErrorMsg);
     }
 
+    onDiskContainerData.setDbFile(dbFile);
     onDiskContainerData.setDbPath(dbFile.getAbsolutePath());
     onDiskContainerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
 
