@@ -51,6 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -87,6 +88,7 @@ import static org.junit.Assert.assertFalse;
   private File testRoot;
   private ChunkManager chunkManager;
   private DBManager dbManager;
+  private String scmId = UUID.randomUUID().toString();
 
   public TestKeyValueContainerCheck(String metadataImpl,
       ChunkLayoutTestInfo chunkManagerTestInfo) {
@@ -113,12 +115,16 @@ import static org.junit.Assert.assertFalse;
     chunkManagerTestInfo.updateConfig(conf);
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
     chunkManager = chunkManagerTestInfo.createChunkManager(true);
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
   }
 
-  @After public void teardown() {
+  @After public void teardown() throws IOException {
     volumeSet.shutdown();
     FileUtil.fullyDelete(testRoot);
+    if (dbManager != null) {
+      dbManager.clean();
+      dbManager = null;
+    }
   }
 
   /**
@@ -241,7 +247,7 @@ import static org.junit.Assert.assertFalse;
     container = new KeyValueContainer(containerData, conf);
     container.create(dbManager, volumeSet,
         new RoundRobinVolumeChoosingPolicy(),
-        UUID.randomUUID().toString());
+        scmId);
     try (ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
         conf)) {
       assertNotNull(containerData.getChunksPath());

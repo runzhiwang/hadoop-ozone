@@ -96,7 +96,7 @@ public class TestBlockManagerImpl {
         .toString()).build();
 
     volumeSet = mock(MutableVolumeSet.class);
-    dbManager = new DBManager(Arrays.asList(hddsVolume), config);
+    dbManager = new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmId, config);
 
     volumeChoosingPolicy = mock(RoundRobinVolumeChoosingPolicy.class);
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))

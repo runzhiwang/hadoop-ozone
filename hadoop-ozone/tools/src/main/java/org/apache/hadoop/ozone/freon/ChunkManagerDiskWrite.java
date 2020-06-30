@@ -96,6 +96,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
   private final ThreadLocal<AtomicLong> bytesWrittenInThread =
       ThreadLocal.withInitial(AtomicLong::new);
 
+  private String scmID = "scmid";
   private DBManager dbManager;
 
   @Override
@@ -107,8 +108,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
       VolumeSet volumeSet =
           new MutableVolumeSet("dnid", "clusterid", ozoneConfiguration);
 
-      dbManager = new DBManager(
-          volumeSet.getVolumesList(), ozoneConfiguration);
+      dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, ozoneConfiguration);
       Random random = new Random();
 
       VolumeChoosingPolicy volumeChoicePolicy =
@@ -132,7 +132,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
             new KeyValueContainer(keyValueContainerData, ozoneConfiguration);
 
         keyValueContainer.create(
-            dbManager, volumeSet, volumeChoicePolicy, "scmid");
+            dbManager, volumeSet, volumeChoicePolicy, scmID);
 
         containersPerThread.put(i, keyValueContainer);
       }

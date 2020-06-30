@@ -95,7 +95,7 @@ public class TestContainerReader {
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))
         .thenReturn(hddsVolume);
 
-    dbManager = new DBManager(Arrays.asList(hddsVolume), conf);
+    dbManager = new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmId, conf);
 
     for (int i=0; i<2; i++) {
       KeyValueContainerData keyValueContainerData = new KeyValueContainerData(i,

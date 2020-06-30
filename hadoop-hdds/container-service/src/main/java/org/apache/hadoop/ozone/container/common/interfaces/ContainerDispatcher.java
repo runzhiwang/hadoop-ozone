@@ -26,6 +26,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -82,5 +83,5 @@ public interface ContainerDispatcher {
    * If scmId is not set, this will set scmId, otherwise it is a no-op.
    * @param scmId
    */
-  void setScmId(String scmId);
+  void setScmId(String scmId) throws IOException;
 }
