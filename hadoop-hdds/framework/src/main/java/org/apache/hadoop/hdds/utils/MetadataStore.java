@@ -35,6 +35,9 @@ import java.util.Map;
 @InterfaceStability.Evolving
 public interface MetadataStore extends Closeable{
 
+  public void createCategories(List<byte[]> columnFamilyNames)
+      throws IOException;
+
   /**
    * Puts a key-value pair into the store.
    *

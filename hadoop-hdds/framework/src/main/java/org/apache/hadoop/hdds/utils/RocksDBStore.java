@@ -56,6 +56,7 @@ public class RocksDBStore implements MetadataStore {
   private ObjectName statMBeanName;
   private Map<String, ColumnFamilyHandle> columnMap =
       new ConcurrentHashMap<>();
+  private ColumnFamilyOptions defaultColumnOpts;
 
   public RocksDBStore(File dbFile, DBOptions options,
       ColumnFamilyOptions defaultColumnOpts) throws IOException {
@@ -64,6 +65,7 @@ public class RocksDBStore implements MetadataStore {
     dbOptions = options;
     dbLocation = dbFile;
     writeOptions = new WriteOptions();
+    this.defaultColumnOpts = defaultColumnOpts;
     try {
       File f = new File(dbLocation.getAbsolutePath());
       boolean newDB = !f.exists();
@@ -140,6 +142,22 @@ public class RocksDBStore implements MetadataStore {
               "columnMap does not container column:" + columnFamilyName);
     }
     return columnMap.get(columnFamilyName);
+  }
+
+
+  @Override
+  public void createCategories(List<byte[]> columnFamilyNames)
+      throws IOException {
+    try {
+      List<ColumnFamilyHandle> handles =
+          db.createColumnFamilies(defaultColumnOpts, columnFamilyNames);
+      for (int i = 0; i < handles.size(); i++) {
+        columnMap.put(
+            StringUtils.bytes2String(columnFamilyNames.get(i)), handles.get(i));
+      }
+    } catch (RocksDBException e) {
+      throw toIOException("Fail to createCategories", e);
+    }
   }
 
 //  @Override

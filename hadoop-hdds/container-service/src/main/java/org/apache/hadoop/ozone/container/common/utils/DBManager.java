@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -50,6 +51,7 @@ public class DBManager {
   private final int maxContainersInDB;
   private final int maxContainerInCategory;
   private final ConfigurationSource conf;
+  private List<byte[]> categories;
 
   public DBManager(List<HddsVolume> volumes, ConfigurationSource conf)
       throws IOException {
@@ -67,9 +69,22 @@ public class DBManager {
         HddsConfigKeys.HDDS_DATANODE_ROCKSDB_COLUMNFAMILY_LIMIT,
         HddsConfigKeys.HDDS_DATANODE_ROCKSDB_COLUMNFAMILY_LIMIT_DEFAULT);
     this.maxContainerInCategory = maxContainersInDB / maxCategoryInDB;
+    this.categories = getCategories();
     this.conf = conf;
 
+    initDBDir(volumes);
     reloadDB(volumes);
+  }
+
+  private void initDBDir(List<HddsVolume> volumes) {
+    for (HddsVolume volume : volumes) {
+      String volumePath = volume.getHddsRootDir().getAbsolutePath();
+      String dbDir = volumePath + "/" + OzoneConsts.ROCKSDB_DIR;
+      File file = new File(dbDir);
+      if (!file.exists()) {
+        file.mkdir();
+      }
+    }
   }
 
   private void reloadDB(List<HddsVolume> volumes)
@@ -101,7 +116,7 @@ public class DBManager {
   }
 
   public synchronized DBCategory allocateDB(String volumePath) throws IOException {
-    Preconditions.assertTrue(volumeDBMap.contains(volumePath),
+    Preconditions.assertTrue(volumeDBMap.containsKey(volumePath),
         " volumePath:" + volumePath + " does not exist in volumeDBMap");
     List<ReferenceCountedDB> dbs = volumeDBMap.get(volumePath);
     ReferenceCountedDB db = null;
@@ -130,7 +145,7 @@ public class DBManager {
     }
 
     String category = allocateCategory(db);
-    incContainerCount(db, category);
+    incContainerCount(db.getStore(), category);
     return new DBCategory(db.getContainerDBPath(), category);
   }
 
@@ -150,38 +165,63 @@ public class DBManager {
     File dbFile = new File(dbFileName);
     MetadataStore store = MetadataStoreBuilder.newBuilder().setConf(conf)
         .setCreateIfMissing(true).setDbFile(dbFile).build();
+    store.createCategories(categories);
+    initContainerCount(store);
     dbCount.incDBCountInFile();
     return new ReferenceCountedDB(store, dbFile.getAbsolutePath());
   }
 
-  private void incContainerCount(ReferenceCountedDB db, String category)
+  private List<byte[]> getCategories() {
+    List<byte[]> categories = new ArrayList<>();
+    for (int i = 0; i < maxCategoryInDB; i ++) {
+      byte[] name =
+          StringUtils.string2Bytes(OzoneConsts.CATEGORY_NAME_PREFIX + i);
+      categories.add(name);
+    }
+    return categories;
+  }
+
+  private void initContainerCount(
+      MetadataStore store) throws IOException {
+    byte[] countInDBKey =
+        StringUtils.string2Bytes(OzoneConsts.DB_CONTAINER_COUNT);
+    store.put(RocksDB.DEFAULT_COLUMN_FAMILY, countInDBKey,
+        Longs.toByteArray(0));
+
+    byte[] countInCategoryKey =
+        StringUtils.string2Bytes(OzoneConsts.CATEGORY_CONTAINER_COUNT);
+    for (byte[] category : categories) {
+      store.put(category, countInCategoryKey,
+          Longs.toByteArray(0));
+    }
+  }
+
+  private void incContainerCount(MetadataStore store, String category)
       throws IOException {
     byte[] countInCategoryKey =
         StringUtils.string2Bytes(OzoneConsts.CATEGORY_CONTAINER_COUNT);
     long countInCategoryValue = Longs.fromByteArray(
-        db.getStore().get(category, countInCategoryKey));
-    db.getStore().put(category, countInCategoryKey,
+        store.get(category, countInCategoryKey));
+    store.put(category, countInCategoryKey,
         Longs.toByteArray(countInCategoryValue + 1));
 
     byte[] countInDBKey =
         StringUtils.string2Bytes(OzoneConsts.DB_CONTAINER_COUNT);
     long countInDBValue = Longs.fromByteArray(
-        db.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, countInDBKey));
-    db.getStore().put(RocksDB.DEFAULT_COLUMN_FAMILY, countInDBKey,
+        store.get(RocksDB.DEFAULT_COLUMN_FAMILY, countInDBKey));
+    store.put(RocksDB.DEFAULT_COLUMN_FAMILY, countInDBKey,
         Longs.toByteArray(countInDBValue + 1));
   }
 
   private String allocateCategory(ReferenceCountedDB db) throws IOException {
-    for (int i = 0; i < maxCategoryInDB; i ++) {
-      byte[] containerCountKey =
+    for (byte[] category : categories) {
+      byte[] countInCategoryKey =
           StringUtils.string2Bytes(OzoneConsts.CATEGORY_CONTAINER_COUNT);
-      String category = OzoneConsts.CATEGORY_NAME_PREFIX + i;
       try {
         long containerCount = Longs.fromByteArray(
-            db.getStore().get(category,
-                containerCountKey));
+            db.getStore().get(category, countInCategoryKey));
         if (containerCount < maxContainerInCategory) {
-          return category;
+          return StringUtils.bytes2String(category);
         }
       } catch (IOException e) {
         LOG.error("Can not get key:{} from category:{}",
