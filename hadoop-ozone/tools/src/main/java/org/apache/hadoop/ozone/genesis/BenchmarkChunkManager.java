@@ -121,7 +121,7 @@ public class BenchmarkChunkManager {
 
       byte[] arr = randomAlphanumeric(chunkSize).getBytes(UTF_8);
       buffer = ChunkBuffer.wrap(ByteBuffer.wrap(arr));
-      dbManager = new DBManager(volumeSet.getVolumesList(), config);
+      dbManager = new DBManager(volumeSet.getVolumesPathList(), config);
     }
 
     @TearDown(Level.Iteration)

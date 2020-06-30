@@ -16,7 +16,9 @@
  */
 package org.apache.hadoop.ozone.container.common.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -32,9 +34,12 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet.getDatanodeStorageDirs;
 
 public class DBManager {
 
@@ -47,19 +52,33 @@ public class DBManager {
       volumeDBCountMap = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, ReferenceCountedDB>
       pathDBMap = new ConcurrentHashMap<>();
-  private final int maxCategoryInDB;
-  private final int maxContainersInDB;
-  private final int maxContainerInCategory;
-  private final ConfigurationSource conf;
+  private int maxCategoryInDB;
+  private int maxContainersInDB;
+  private int maxContainerInCategory;
+  private ConfigurationSource conf;
   private List<byte[]> categories;
 
-  public DBManager(List<HddsVolume> volumes, ConfigurationSource conf)
+  public DBManager(List<String> volumes, ConfigurationSource conf)
       throws IOException {
-    for (HddsVolume volume : volumes) {
-      String volumePath = volume.getHddsRootDir().getAbsolutePath();
-      volumeDBMap.put(volumePath, new CopyOnWriteArrayList<>());
-      volumeDBCountMap.put(volumePath, new RocksDBCount(
-          volumePath + "/" + OzoneConsts.ROCKSDB_COUNT_FILE_NAME));
+    initDBManager(volumes, conf);
+  }
+
+  public DBManager(ConfigurationSource conf) throws IOException {
+    Collection<String> rawLocations = getDatanodeStorageDirs(conf);
+    List<String> volumes = new ArrayList<>();
+    for (String location : rawLocations) {
+      volumes.add(location + "/" + HddsVolume.HDDS_VOLUME_DIR);
+    }
+    initDBManager(volumes, conf);
+  }
+
+  public void initDBManager(List<String> volumes, ConfigurationSource conf)
+      throws IOException {
+    for (String volume : volumes) {
+      volumeDBMap.put(volume, new CopyOnWriteArrayList<>());
+      volumeDBCountMap.put(volume, new RocksDBCount(
+          volume +
+              "/" + OzoneConsts.ROCKSDB_COUNT_FILE_NAME));
     }
 
     this.maxContainersInDB = conf.getInt(
@@ -76,10 +95,10 @@ public class DBManager {
     reloadDB(volumes);
   }
 
-  private void initDBDir(List<HddsVolume> volumes) {
-    for (HddsVolume volume : volumes) {
-      String volumePath = volume.getHddsRootDir().getAbsolutePath();
-      String dbDir = volumePath + "/" + OzoneConsts.ROCKSDB_DIR;
+
+  private void initDBDir(List<String> volumes) {
+    for (String volume : volumes) {
+      String dbDir = volume + "/" + OzoneConsts.ROCKSDB_DIR;
       File file = new File(dbDir);
       if (!file.exists()) {
         file.mkdir();
@@ -87,14 +106,13 @@ public class DBManager {
     }
   }
 
-  private void reloadDB(List<HddsVolume> volumes)
+  private void reloadDB(List<String> volumes)
       throws IOException {
-    for (HddsVolume volume : volumes) {
-      String volumePath = volume.getHddsRootDir().getAbsolutePath();
-      RocksDBCount dbCount = volumeDBCountMap.get(volumePath);
+    for (String volume : volumes) {
+      RocksDBCount dbCount = volumeDBCountMap.get(volume);
       int count = dbCount.getRocksDBCount();
       for (int i = 0; i < count; i ++) {
-        String dbFileName = volumePath + "/" + OzoneConsts.ROCKSDB_DIR + "/" + i;
+        String dbFileName = volume + "/" + OzoneConsts.ROCKSDB_DIR + "/" + i;
         File dbFile = new File(dbFileName);
         if (!dbFile.exists()) {
           LOG.error("Rocksdb:" + dbFileName + " does not exist");
@@ -109,7 +127,7 @@ public class DBManager {
                 .build();
         ReferenceCountedDB db =
             new ReferenceCountedDB(metadataStore, dbFile.getPath());
-        volumeDBMap.get(volumePath).add(db);
+        volumeDBMap.get(volume).add(db);
         pathDBMap.put(db.getContainerDBPath(), db);
       }
     }
@@ -169,6 +187,19 @@ public class DBManager {
     initContainerCount(store);
     dbCount.incDBCountInFile();
     return new ReferenceCountedDB(store, dbFile.getAbsolutePath());
+  }
+
+  @VisibleForTesting
+  public void clean() throws IOException {
+    for (String volume : volumeDBMap.keySet()) {
+      List<ReferenceCountedDB> dbs = volumeDBMap.get(volume);
+      for (ReferenceCountedDB db : dbs) {
+        db.getStore().close();
+      }
+      FileUtils.deleteDirectory(new File(volume, OzoneConsts.ROCKSDB_DIR));
+      FileUtils.deleteQuietly(
+          new File(volume, OzoneConsts.ROCKSDB_COUNT_FILE_NAME));
+    }
   }
 
   private List<byte[]> getCategories() {

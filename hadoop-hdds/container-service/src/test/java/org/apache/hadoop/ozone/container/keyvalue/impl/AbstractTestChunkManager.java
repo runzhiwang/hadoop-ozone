@@ -41,6 +41,8 @@ import org.mockito.Mockito;
 import java.io.File;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -97,7 +99,8 @@ public abstract class AbstractTestChunkManager {
 
     keyValueContainer = new KeyValueContainer(keyValueContainerData, config);
 
-    dbManager = new DBManager(volumeSet.getVolumesList(), config);
+    dbManager =
+        new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), config);
     keyValueContainer.create(dbManager, volumeSet, volumeChoosingPolicy,
         UUID.randomUUID().toString());
 

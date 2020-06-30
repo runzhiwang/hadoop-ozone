@@ -113,7 +113,7 @@ import static org.junit.Assert.assertFalse;
     chunkManagerTestInfo.updateConfig(conf);
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
     chunkManager = chunkManagerTestInfo.createChunkManager(true);
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), conf);
   }
 
   @After public void teardown() {

@@ -99,7 +99,7 @@ public class TestKeyValueBlockIterator {
     conf.set(HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
     conf.set(OZONE_METADATA_STORE_IMPL, storeImpl);
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), conf);
   }
 
 

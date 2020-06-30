@@ -100,7 +100,8 @@ public class TestKeyValueContainerMarkUnhealthy {
     HddsVolume hddsVolume = new HddsVolume.Builder(folder.getRoot()
         .getAbsolutePath()).conf(conf).datanodeUuid(datanodeId
         .toString()).build();
-    dbManager = new DBManager(Arrays.asList(hddsVolume), conf);
+    dbManager =
+        new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), conf);
     volumeSet = mock(MutableVolumeSet.class);
     volumeChoosingPolicy = mock(RoundRobinVolumeChoosingPolicy.class);
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))

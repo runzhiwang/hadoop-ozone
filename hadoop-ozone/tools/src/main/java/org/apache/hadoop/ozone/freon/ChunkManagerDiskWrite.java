@@ -108,7 +108,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
           new MutableVolumeSet("dnid", "clusterid", ozoneConfiguration);
 
       dbManager = new DBManager(
-          volumeSet.getVolumesList(), ozoneConfiguration);
+          volumeSet.getVolumesPathList(), ozoneConfiguration);
       Random random = new Random();
 
       VolumeChoosingPolicy volumeChoicePolicy =

@@ -118,7 +118,16 @@ public class KeyValueHandler extends Handler {
 
   public KeyValueHandler(ConfigurationSource config, String datanodeId,
       ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender) throws IOException {
+      Consumer<ContainerReplicaProto> icrSender)
+      throws IOException {
+    this(config, datanodeId, contSet, volSet, metrics, icrSender,
+        new DBManager(volSet.getVolumesPathList(), config));
+  }
+
+  public KeyValueHandler(ConfigurationSource config, String datanodeId,
+      ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
+      Consumer<ContainerReplicaProto> icrSender, DBManager dbManager)
+      throws IOException {
     super(config, datanodeId, contSet, volSet, metrics, icrSender);
     containerType = ContainerType.KeyValueContainer;
     blockManager = new BlockManagerImpl(config);
@@ -139,7 +148,7 @@ public class KeyValueHandler extends Handler {
     byteBufferToByteString =
         ByteStringConversion.createByteBufferConversion(conf);
 
-    dbManager = new DBManager(volSet.getVolumesList(), config);
+    this.dbManager = dbManager;
   }
 
   @VisibleForTesting

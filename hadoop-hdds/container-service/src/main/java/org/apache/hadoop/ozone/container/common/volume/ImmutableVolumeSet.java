@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.container.common.volume;
 
 import com.google.common.collect.ImmutableList;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -35,6 +36,15 @@ public final class ImmutableVolumeSet implements VolumeSet {
   @Override
   public List<HddsVolume> getVolumesList() {
     return volumes;
+  }
+
+  @Override
+  public List<String> getVolumesPathList() {
+    List<String> volumePaths = new ArrayList<>();
+    for (HddsVolume volume : volumes) {
+      volumePaths.add(volume.getHddsRootDir().getAbsolutePath());
+    }
+    return volumePaths;
   }
 
   @Override

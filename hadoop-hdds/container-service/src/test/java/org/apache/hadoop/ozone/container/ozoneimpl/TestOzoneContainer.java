@@ -113,11 +113,14 @@ public class TestOzoneContainer {
     commitSpaceMap = new HashMap<String, Long>();
     volumeSet = new MutableVolumeSet(datanodeDetails.getUuidString(), conf);
     volumeChoosingPolicy = new RoundRobinVolumeChoosingPolicy();
-    dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), conf);
   }
 
   @After
   public void cleanUp() throws Exception {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     if (volumeSet != null) {
       volumeSet.shutdown();
       volumeSet = null;

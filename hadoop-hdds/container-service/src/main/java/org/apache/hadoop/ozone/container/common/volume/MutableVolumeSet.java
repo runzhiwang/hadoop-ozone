@@ -472,6 +472,15 @@ public class MutableVolumeSet implements VolumeSet {
     return ImmutableList.copyOf(volumeMap.values());
   }
 
+  @Override
+  public List<String> getVolumesPathList() {
+    List<String> volumePaths = new ArrayList<>();
+    for (HddsVolume volume : volumeMap.values()) {
+      volumePaths.add(volume.getHddsRootDir().getAbsolutePath());
+    }
+    return ImmutableList.copyOf(volumePaths);
+  }
+
   @VisibleForTesting
   public List<HddsVolume> getFailedVolumesList() {
     return ImmutableList.copyOf(failedVolumeMap.values());

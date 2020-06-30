@@ -54,7 +54,9 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.test.GenericTestUtils;
 
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -94,6 +96,15 @@ public class TestHddsDispatcher {
     return ChunkLayoutTestInfo.chunkLayoutParameters();
   }
 
+  private DBManager dbManager;
+
+  @After
+  public void cleanDB() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
+  }
+
   @Test
   public void testContainerCloseActionWhenFull() throws IOException {
     String testDir = GenericTestUtils.getTempPath(
@@ -102,7 +113,7 @@ public class TestHddsDispatcher {
     conf.set(HDDS_DATANODE_DIR_KEY, testDir);
     DatanodeDetails dd = randomDatanodeDetails();
     MutableVolumeSet volumeSet = new MutableVolumeSet(dd.getUuidString(), conf);
-    DBManager dbManager = new DBManager(volumeSet.getVolumesList(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), conf);
 
     try {
       UUID scmId = UUID.randomUUID();
@@ -125,9 +136,11 @@ public class TestHddsDispatcher {
       Map<ContainerType, Handler> handlers = Maps.newHashMap();
       for (ContainerType containerType : ContainerType.values()) {
         handlers.put(containerType,
-            Handler.getHandlerForContainerType(containerType, conf,
+            Handler.getHandlerForContainerTypeWithDBManager(
+                containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
-                containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+                containerSet, volumeSet, metrics, NO_OP_ICR_SENDER,
+                dbManager));
       }
       HddsDispatcher hddsDispatcher = new HddsDispatcher(
           conf, containerSet, volumeSet, handlers, context, metrics, null);
@@ -277,6 +290,7 @@ public class TestHddsDispatcher {
       OzoneConfiguration conf) throws IOException {
     ContainerSet containerSet = new ContainerSet();
     VolumeSet volumeSet = new MutableVolumeSet(dd.getUuidString(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), conf);
     DatanodeStateMachine stateMachine = Mockito.mock(
         DatanodeStateMachine.class);
     StateContext context = Mockito.mock(StateContext.class);
@@ -286,9 +300,9 @@ public class TestHddsDispatcher {
     Map<ContainerType, Handler> handlers = Maps.newHashMap();
     for (ContainerType containerType : ContainerType.values()) {
       handlers.put(containerType,
-          Handler.getHandlerForContainerType(containerType, conf,
+          Handler.getHandlerForContainerTypeWithDBManager(containerType, conf,
               context.getParent().getDatanodeDetails().getUuidString(),
-              containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+              containerSet, volumeSet, metrics, NO_OP_ICR_SENDER, dbManager));
     }
 
     HddsDispatcher hddsDispatcher = new HddsDispatcher(
