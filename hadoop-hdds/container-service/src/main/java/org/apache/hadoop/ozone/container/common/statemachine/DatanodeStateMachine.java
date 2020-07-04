@@ -503,7 +503,8 @@ public class DatanodeStateMachine implements Closeable {
 
     containerCommandThreadPool =
         Executors.newFixedThreadPool(containerCommandThreadPoolSize,
-            new ThreadFactoryBuilder().setNameFormat("Container-Command-Handler-%d").build());
+            new ThreadFactoryBuilder()
+                .setNameFormat("Container-Command-Handler-%d").build());
 
     Runnable runnable = getContainerCommandHandlerRunnable();
     for (int i = 0; i < containerCommandThreadPoolSize; i++) {
