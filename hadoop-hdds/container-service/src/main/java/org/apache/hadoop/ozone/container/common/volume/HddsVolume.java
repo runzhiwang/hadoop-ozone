@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.fs.SpaceUsageCheckFactory;
 import org.apache.hadoop.hdfs.server.datanode.StorageLocation;
 import org.apache.hadoop.hdfs.server.datanode.checker.Checkable;
 import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.common.InconsistentStorageStateException;
 import org.apache.hadoop.ozone.container.common.DataNodeLayoutVersion;
 import org.apache.hadoop.ozone.container.common.helpers.DatanodeVersionFile;
@@ -229,6 +230,17 @@ public class HddsVolume
     }
   }
 
+  private boolean isRocksdbFile(File[] files) {
+    boolean flag = true;
+    for (File file : files) {
+      if (!file.getAbsolutePath().endsWith(OzoneConsts.ROCKSDB_DIR) &&
+          !file.getAbsolutePath().endsWith(OzoneConsts.ROCKSDB_COUNT)) {
+        flag = false;
+      }
+    }
+    return flag;
+  }
+
   private VolumeState analyzeVolumeState() {
     if (!hddsRootDir.exists()) {
       // Volume Root does not exist.
@@ -242,10 +254,11 @@ public class HddsVolume
       return VolumeState.INCONSISTENT;
     }
     File[] files = hddsRootDir.listFiles();
-    if (files == null || files.length == 0) {
+    if (files == null || files.length == 0 || isRocksdbFile(files)) {
       // Volume Root exists and is empty.
       return VolumeState.NOT_FORMATTED;
     }
+
     if (!getVersionFile().exists()) {
       // Volume Root is non empty but VERSION file does not exist.
       LOG.warn("VERSION file does not exist in volume {},"

@@ -26,6 +26,7 @@ import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import com.google.common.base.Preconditions;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.common.Storage;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
@@ -103,7 +104,8 @@ public class ContainerReader implements Runnable {
     File[] scmDir = hddsVolumeRootDir.listFiles(new FileFilter() {
       @Override
       public boolean accept(File pathname) {
-        return pathname.isDirectory();
+        return pathname.isDirectory() &&
+            !pathname.getAbsolutePath().endsWith(OzoneConsts.ROCKSDB_DIR);
       }
     });
 

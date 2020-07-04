@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -43,6 +44,7 @@ import org.apache.hadoop.ozone.container.common.statemachine.SCMConnectionManage
 import org.apache.hadoop.ozone.container.common.states.DatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.InitDatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.RunningDatanodeState;
+import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.test.GenericTestUtils;
 import org.apache.hadoop.util.concurrent.HadoopExecutors;
 
@@ -204,6 +206,13 @@ public class TestDatanodeStateMachine {
       InterruptedException, ExecutionException, TimeoutException {
     // There is no mini cluster started in this test,
     // create a ID file so that state machine could load a fake datanode ID.
+    FileUtils.deleteDirectory(new File(conf.get(HDDS_DATANODE_DIR_KEY),
+        HddsVolume.HDDS_VOLUME_DIR + "/" +
+            OzoneConsts.ROCKSDB_DIR));
+    FileUtils.deleteQuietly(new File(conf.get(HDDS_DATANODE_DIR_KEY),
+        HddsVolume.HDDS_VOLUME_DIR + "/" +
+            OzoneConsts.ROCKSDB_COUNT_FILE_NAME));
+
     File idPath = new File(
         conf.get(ScmConfigKeys.OZONE_SCM_DATANODE_ID_DIR),
         OzoneConsts.OZONE_SCM_DATANODE_ID_FILE_DEFAULT);
@@ -250,7 +259,7 @@ public class TestDatanodeStateMachine {
 
       // This execute will invoke getVersion calls against all SCM endpoints
       // that we know of.
-
+      Thread.sleep(2000);
       task.execute(executorService);
       newState = task.await(10, TimeUnit.SECONDS);
 
@@ -413,6 +422,12 @@ public class TestDatanodeStateMachine {
             task.await(2, TimeUnit.SECONDS);
         Assert.assertEquals(DatanodeStateMachine.DatanodeStates.SHUTDOWN,
             newState);
+        FileUtils.deleteDirectory(new File(conf.get(HDDS_DATANODE_DIR_KEY),
+            HddsVolume.HDDS_VOLUME_DIR + "/" +
+                OzoneConsts.ROCKSDB_DIR));
+        FileUtils.deleteQuietly(new File(conf.get(HDDS_DATANODE_DIR_KEY),
+            HddsVolume.HDDS_VOLUME_DIR + "/" +
+                OzoneConsts.ROCKSDB_COUNT_FILE_NAME));
       } catch (Exception e) {
         Assert.fail("Unexpected exception found");
       }
