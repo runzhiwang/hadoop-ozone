@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
+import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Creates pipeline based on replication type.
@@ -68,9 +70,10 @@ public class PipelineFactory {
     return providers.get(type).create(factor, nodes);
   }
 
-  public void close(ReplicationType type, Pipeline pipeline)
+  public void close(
+      ReplicationType type, Pipeline pipeline, Set<Long> containerIDs)
       throws IOException {
-    providers.get(type).close(pipeline);
+    providers.get(type).close(pipeline, containerIDs);
   }
 
   public void shutdown() {

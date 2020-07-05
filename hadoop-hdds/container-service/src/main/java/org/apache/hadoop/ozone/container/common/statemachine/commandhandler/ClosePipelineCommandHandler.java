@@ -17,16 +17,19 @@
 package org.apache.hadoop.ozone.container.common.statemachine.commandhandler;
 
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
+import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.
     StorageContainerDatanodeProtocolProtos.ClosePipelineCommandProto;
 import org.apache.hadoop.hdds.protocol.proto.
     StorageContainerDatanodeProtocolProtos.SCMCommandProto;
+import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.statemachine
     .SCMConnectionManager;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server
     .XceiverServerSpi;
+import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
 import org.apache.hadoop.ozone.container.ozoneimpl.OzoneContainer;
 import org.apache.hadoop.ozone.protocol.commands.ClosePipelineCommand;
 import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
@@ -35,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -70,7 +74,22 @@ public class ClosePipelineCommandHandler implements CommandHandler {
     final DatanodeDetails dn = context.getParent().getDatanodeDetails();
     final ClosePipelineCommandProto closeCommand =
         ((ClosePipelineCommand)command).getProto();
+
     final HddsProtos.PipelineID pipelineID = closeCommand.getPipelineID();
+
+    final List<Long> containerIDs = closeCommand.getContainerIDList();
+    final ContainerController controller = ozoneContainer.getController();
+    for (long containerID : containerIDs) {
+      final Container container = controller.getContainer(containerID);
+      if (container.getContainerState() !=
+          ContainerProtos.ContainerDataProto.State.CLOSED) {
+        LOG.info("Container#{} must be closed before Close Pipeline #{} " +
+            "command on datanode #{}.", containerID, pipelineID,
+            dn.getUuidString());
+        return HandleResult.FAIL;
+      }
+    }
+
     HandleResult handleResult = HandleResult.FAIL;
     try {
       XceiverServerSpi server = ozoneContainer.getWriteChannel();

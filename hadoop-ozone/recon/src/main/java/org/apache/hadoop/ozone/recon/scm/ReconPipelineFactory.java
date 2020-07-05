@@ -18,7 +18,9 @@
 
 package org.apache.hadoop.ozone.recon.scm;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.collections.map.DefaultedMap;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -57,7 +59,8 @@ public class ReconPipelineFactory extends PipelineFactory {
     }
 
     @Override
-    public void close(Pipeline pipeline) {
+    protected void close(Pipeline pipeline, Set<Long> containerIDs)
+        throws IOException {
       // Do nothing in Recon.
     }
 

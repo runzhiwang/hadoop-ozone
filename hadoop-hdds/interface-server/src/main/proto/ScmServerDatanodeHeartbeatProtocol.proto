@@ -382,6 +382,7 @@ This command asks the datanode to close a pipeline.
 message ClosePipelineCommandProto {
   required PipelineID pipelineID = 1;
   required int64 cmdId = 2;
+  repeated int64 containerID = 3;
 }
 
 /**

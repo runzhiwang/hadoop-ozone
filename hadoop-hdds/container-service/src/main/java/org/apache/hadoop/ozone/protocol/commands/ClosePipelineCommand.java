@@ -21,7 +21,12 @@ import org.apache.hadoop.hdds.protocol.proto
     .StorageContainerDatanodeProtocolProtos.ClosePipelineCommandProto;
 import org.apache.hadoop.hdds.protocol.proto
     .StorageContainerDatanodeProtocolProtos.SCMCommandProto;
+import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Asks datanode to close a pipeline.
@@ -30,15 +35,24 @@ public class ClosePipelineCommand
     extends SCMCommand<ClosePipelineCommandProto> {
 
   private final PipelineID pipelineID;
+  private final Set<Long> containerIDs = new HashSet<>();
 
   public ClosePipelineCommand(final PipelineID pipelineID) {
     super();
     this.pipelineID = pipelineID;
   }
 
-  public ClosePipelineCommand(long cmdId, final PipelineID pipelineID) {
+  public ClosePipelineCommand(final PipelineID pipelineID, Set<Long> containerIDs) {
+    super();
+    this.pipelineID = pipelineID;
+    this.containerIDs.addAll(containerIDs);
+  }
+
+  public ClosePipelineCommand(
+      long cmdId, final PipelineID pipelineID, Set<Long> containerIDs) {
     super(cmdId);
     this.pipelineID = pipelineID;
+    this.containerIDs.addAll(containerIDs);
   }
 
   /**
@@ -57,14 +71,19 @@ public class ClosePipelineCommand
         ClosePipelineCommandProto.newBuilder();
     builder.setCmdId(getId());
     builder.setPipelineID(pipelineID.getProtobuf());
+    for (Long containerID : containerIDs) {
+      builder.addContainerID(containerID);
+    }
     return builder.build();
   }
 
   public static ClosePipelineCommand getFromProtobuf(
       ClosePipelineCommandProto createPipelineProto) {
     Preconditions.checkNotNull(createPipelineProto);
+    List<Long> containerIDs =  createPipelineProto.getContainerIDList();
     return new ClosePipelineCommand(createPipelineProto.getCmdId(),
-        PipelineID.getFromProtobuf(createPipelineProto.getPipelineID()));
+        PipelineID.getFromProtobuf(createPipelineProto.getPipelineID()),
+        new HashSet<>(containerIDs));
   }
 
   public PipelineID getPipelineID() {

@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.recon.scm;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -64,7 +65,8 @@ public class ReconPipelineManager extends SCMPipelineManager {
   }
 
   @Override
-  protected void destroyPipeline(Pipeline pipeline) throws IOException {
+  protected void destroyPipeline(Pipeline pipeline , Set<Long> containerIDs)
+      throws IOException {
     // remove the pipeline from the pipeline manager
     removePipeline(pipeline.getId());
   }

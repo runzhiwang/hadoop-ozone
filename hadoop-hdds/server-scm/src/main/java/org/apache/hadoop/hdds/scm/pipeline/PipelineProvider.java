@@ -28,6 +28,7 @@ import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
+import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 
@@ -64,7 +65,9 @@ public abstract class PipelineProvider {
   protected abstract Pipeline create(ReplicationFactor factor,
       List<DatanodeDetails> nodes);
 
-  protected abstract void close(Pipeline pipeline) throws IOException;
+  protected abstract void close(
+      Pipeline pipeline, Set<Long> containerIDs)
+      throws IOException;
 
   protected abstract void shutdown();
 

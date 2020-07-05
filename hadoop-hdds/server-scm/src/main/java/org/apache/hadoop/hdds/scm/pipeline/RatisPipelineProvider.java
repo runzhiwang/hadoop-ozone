@@ -20,6 +20,7 @@ package org.apache.hadoop.hdds.scm.pipeline;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -27,6 +28,7 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
+import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
@@ -167,9 +169,9 @@ public class RatisPipelineProvider extends PipelineProvider {
    * @param pipeline        - Pipeline to be destroyed
    * @throws IOException
    */
-  public void close(Pipeline pipeline) {
+  public void close(Pipeline pipeline, Set<Long> containerIDs) {
     final ClosePipelineCommand closeCommand =
-        new ClosePipelineCommand(pipeline.getId());
+        new ClosePipelineCommand(pipeline.getId(), containerIDs);
     pipeline.getNodes().stream().forEach(node -> {
       final CommandForDatanode datanodeCommand =
           new CommandForDatanode<>(node.getUuid(), closeCommand);

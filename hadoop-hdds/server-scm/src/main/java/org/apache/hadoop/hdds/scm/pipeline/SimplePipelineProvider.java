@@ -27,6 +27,7 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Implements Api for creating stand alone pipelines.
@@ -73,7 +74,8 @@ public class SimplePipelineProvider extends PipelineProvider {
   }
 
   @Override
-  public void close(Pipeline pipeline) throws IOException {
+  protected void close(Pipeline pipeline, Set<Long> containerIDs)
+      throws IOException {
 
   }
 

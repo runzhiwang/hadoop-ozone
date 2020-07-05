@@ -22,12 +22,7 @@ import javax.management.ObjectName;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -395,17 +390,24 @@ public class SCMPipelineManager implements PipelineManager {
   public void finalizeAndDestroyPipeline(Pipeline pipeline, boolean onTimeout)
       throws IOException {
     LOG.info("Destroying pipeline:{}", pipeline);
+    Set<ContainerID> containerIDs =
+        stateManager.getContainers(pipeline.getId());
+    Set<Long> ids = new HashSet<>();
+    for (ContainerID ID : containerIDs) {
+      ids.add(ID.getId());
+    }
+
     finalizePipeline(pipeline.getId());
     if (onTimeout) {
       long pipelineDestroyTimeoutInMillis =
           conf.getTimeDuration(ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT,
               ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT_DEFAULT,
               TimeUnit.MILLISECONDS);
-      scheduler.schedule(() -> destroyPipeline(pipeline),
+      scheduler.schedule(() -> destroyPipeline(pipeline, ids),
           pipelineDestroyTimeoutInMillis, TimeUnit.MILLISECONDS, LOG,
           String.format("Destroy pipeline failed for pipeline:%s", pipeline));
     } else {
-      destroyPipeline(pipeline);
+      destroyPipeline(pipeline, ids);
     }
   }
 
@@ -555,8 +557,10 @@ public class SCMPipelineManager implements PipelineManager {
    * @param pipeline        - Pipeline to be destroyed
    * @throws IOException
    */
-  protected void destroyPipeline(Pipeline pipeline) throws IOException {
-    pipelineFactory.close(pipeline.getType(), pipeline);
+  protected void destroyPipeline(
+      Pipeline pipeline, Set<Long> containerIDs)
+      throws IOException {
+    pipelineFactory.close(pipeline.getType(), pipeline, containerIDs);
     // remove the pipeline from the pipeline manager
     removePipeline(pipeline.getId());
     triggerPipelineCreation();
