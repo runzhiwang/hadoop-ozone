@@ -494,12 +494,12 @@ public class StateContext {
   }
 
   private void addContainerCommandMap(long containerID, SCMCommand command) {
+    removeEmptyCommandQueue();
+
     if (containerID == -1) {
       LOG.error("Error containerID:{} of SCMCommand:{}", containerID, command);
       return;
     }
-
-    removeEmptyCommandQueue();
 
     CommandQueueWithLock<SCMCommand> queue =
         containerCommandMap.get(containerID);

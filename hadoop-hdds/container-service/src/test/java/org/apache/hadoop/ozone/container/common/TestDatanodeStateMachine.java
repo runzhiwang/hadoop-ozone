@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +34,7 @@ import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
+import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -40,9 +42,11 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.EndpointStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.SCMConnectionManager;
+import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.states.DatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.InitDatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.RunningDatanodeState;
+import org.apache.hadoop.ozone.protocol.commands.CloseContainerCommand;
 import org.apache.hadoop.test.GenericTestUtils;
 import org.apache.hadoop.util.concurrent.HadoopExecutors;
 
@@ -321,6 +325,69 @@ public class TestDatanodeStateMachine {
       for (ScmTestMock mock : mockServers) {
         Assert.assertEquals(1, mock.getHeartbeatCount());
       }
+    }
+  }
+
+  @Test
+  public void testMultiTheadProcessContainerCommand() throws Exception {
+        // There is no mini cluster started in this test,
+    // create a ID file so that state machine could load a fake datanode ID.
+    File idPath = new File(
+        conf.get(ScmConfigKeys.OZONE_SCM_DATANODE_ID_DIR),
+        OzoneConsts.OZONE_SCM_DATANODE_ID_FILE_DEFAULT);
+    idPath.delete();
+    DatanodeDetails datanodeDetails = getNewDatanodeDetails();
+    DatanodeDetails.Port port = DatanodeDetails.newPort(
+        DatanodeDetails.Port.Name.STANDALONE,
+        OzoneConfigKeys.DFS_CONTAINER_IPC_PORT_DEFAULT);
+    datanodeDetails.setPort(port);
+    ContainerUtils.writeDatanodeDetailsTo(datanodeDetails, idPath);
+
+    try (DatanodeStateMachine stateMachine =
+             new DatanodeStateMachine(datanodeDetails, conf, null, null)) {
+      StateContext context = stateMachine.getContext();
+      DatanodeStateMachine.DatanodeStates currentState =
+          context.getState();
+      Assert.assertEquals(DatanodeStateMachine.DatanodeStates.INIT,
+          currentState);
+      context.setState(
+          DatanodeStateMachine.DatanodeStates.RUNNING);
+      stateMachine.startDaemon();
+      // wait thread start
+      Thread.sleep(500);
+
+      List<Long> containerIDs =
+          Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
+
+      long cmdNumInContainer = 1000;
+      for (Long containerID : containerIDs) {
+        for (long i = 1; i <= cmdNumInContainer; i ++) {
+          CloseContainerCommand command =
+              new CloseContainerCommand(containerID, PipelineID.randomId());
+          context.addCommand(command);
+          if (i % 10 == 0) {
+            // wait pre 10 commands were processed
+            // then trigger removeEmptyCommandQueue
+            Thread.sleep(10);
+          }
+        }
+      }
+
+      // wait process all commands
+      Thread.sleep(2000);
+
+      // dummy command to trigger removeEmptyCommandQueue
+      // in addContainerCommandMap
+      CloseContainerCommand command =
+          new CloseContainerCommand(-1, PipelineID.randomId());
+      context.addCommand(command);
+
+      // make sure no missed command
+      assertTrue(stateMachine.getCommandHandled() ==
+          cmdNumInContainer * containerIDs.size());
+
+      // make sure map is empty after commands were processed
+      assertTrue(context.getContainerCommandMap().size() == 0);
     }
   }
 
