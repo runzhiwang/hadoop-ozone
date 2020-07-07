@@ -568,8 +568,8 @@ public class DatanodeStateMachine implements Closeable {
             } catch (InterruptedException e) {
             }
           }
-        } catch (Exception e) {
-          LOG.error("container command handler throw exception:", e);
+        } catch (Throwable t) {
+          LOG.error("container command handler throw exception:", t);
         }
       }
     };

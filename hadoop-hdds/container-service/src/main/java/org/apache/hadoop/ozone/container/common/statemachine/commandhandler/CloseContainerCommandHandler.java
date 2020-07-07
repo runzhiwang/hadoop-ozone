@@ -116,6 +116,9 @@ public class CloseContainerCommandHandler implements CommandHandler {
           if (container.tryWriteLock()) {
             try {
               controller.markContainerUnhealthy(containerId);
+              LOG.error("Container #{} mark unhealthy because pipeline {} has"
+                  + " been closed. ", containerId,
+                  closeCommand.getPipelineID());
             } finally {
               container.writeUnlock();
             }

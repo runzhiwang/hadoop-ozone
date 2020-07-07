@@ -483,6 +483,8 @@ public class SCMPipelineManager implements PipelineManager {
         } catch (InterruptedException e) {
           loop = false;
           LOG.info("Interrupt destroy pipeline thread", e);
+        } catch (Throwable t) {
+          LOG.info("Destroy pipeline thread throw exception", t);
         }
       }
     };
@@ -495,12 +497,6 @@ public class SCMPipelineManager implements PipelineManager {
     Thread handlerThread = new Thread(destroyPipeline);
     handlerThread.setDaemon(true);
     handlerThread.setName("Destroy pipeline thread");
-    handlerThread.setUncaughtExceptionHandler((Thread t, Throwable e) -> {
-      // Let us just restart this thread after logging a critical error.
-      LOG.error("Critical Error : Destroy pipeline thread encountered an " +
-          "error. Thread: {}", t.toString(), e);
-      getDestroyPipelineThread(destroyPipeline).start();
-    });
     return handlerThread;
   }
 

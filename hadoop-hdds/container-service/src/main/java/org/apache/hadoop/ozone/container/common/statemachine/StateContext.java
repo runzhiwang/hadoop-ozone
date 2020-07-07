@@ -480,7 +480,7 @@ public class StateContext {
         if (containerCommandMap.containsKey(key)) {
           CommandQueueWithLock<SCMCommand> queue =
               containerCommandMap.get(key);
-          if (queue.isEmpty()) {
+          if (queue != null && queue.isEmpty()) {
             containerCommandMap.remove(key);
           }
         }
