@@ -361,7 +361,7 @@ public class TestDatanodeStateMachine {
 
       long cmdNumInContainer = 1000;
       for (Long containerID : containerIDs) {
-        for (long i = 1; i <= cmdNumInContainer; i ++) {
+        for (long i = 1; i <= cmdNumInContainer; i++) {
           CloseContainerCommand command =
               new CloseContainerCommand(containerID, PipelineID.randomId());
           context.addCommand(command);
