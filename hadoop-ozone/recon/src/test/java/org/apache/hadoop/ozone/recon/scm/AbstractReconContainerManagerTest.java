@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.net.NetworkTopologyImpl;
@@ -75,13 +76,17 @@ public class AbstractReconContainerManagerTest {
     EventQueue eventQueue = new EventQueue();
     NodeManager nodeManager =
         new SCMNodeManager(conf, scmStorageConfig, eventQueue, clusterMap);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     pipelineManager = new ReconPipelineManager(conf, nodeManager,
+        containerStateManager,
         ReconDBDefinition.PIPELINES.getTable(store), eventQueue);
     containerManager = new ReconContainerManager(
         conf,
         ReconDBDefinition.CONTAINERS.getTable(store),
         store,
         pipelineManager,
+        containerStateManager,
         getScmServiceProvider(),
         mock(ContainerSchemaManager.class));
   }

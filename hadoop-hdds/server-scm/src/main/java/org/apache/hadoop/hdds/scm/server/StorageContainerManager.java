@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
@@ -55,6 +56,7 @@ import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerManager;
 import org.apache.hadoop.hdds.scm.container.ContainerReportHandler;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.IncrementalContainerReportHandler;
 import org.apache.hadoop.hdds.scm.container.ReplicationManager;
 import org.apache.hadoop.hdds.scm.container.ReplicationManager.ReplicationManagerConfiguration;
@@ -67,7 +69,7 @@ import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException.ResultCodes;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
-import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreRDBImpl;
+import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreImpl;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.net.NetworkTopologyImpl;
 import org.apache.hadoop.hdds.scm.node.DeadNodeHandler;
@@ -93,7 +95,6 @@ import org.apache.hadoop.hdds.server.events.EventQueue;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.utils.HddsVersionInfo;
 import org.apache.hadoop.hdds.utils.LegacyHadoopConfigurationSource;
-import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.metrics2.MetricsSystem;
@@ -402,11 +403,14 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         ContainerPlacementPolicyFactory.getPolicy(conf, scmNodeManager,
             clusterMap, true, placementMetrics);
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
+
     if (configurator.getPipelineManager() != null) {
       pipelineManager = configurator.getPipelineManager();
     } else {
       pipelineManager =
-          new SCMPipelineManager(conf, scmNodeManager,
+          new SCMPipelineManager(conf, scmNodeManager, containerStateManager,
               scmMetadataStore.getPipelineTable(),
               eventQueue);
     }
@@ -418,7 +422,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           new SCMContainerManager(conf,
               scmMetadataStore.getContainerTable(),
               scmMetadataStore.getBatchHandler(),
-              pipelineManager);
+              pipelineManager,
+              containerStateManager);
     }
 
     if (configurator.getScmBlockManager() != null) {
@@ -434,7 +439,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
           containerManager,
           containerPlacementPolicy,
           eventQueue,
-          new LockManager<>(conf));
+          new LockManager<>(conf),
+          scmNodeManager);
     }
     if(configurator.getScmSafeModeManager() != null) {
       scmSafeModeManager = configurator.getScmSafeModeManager();
@@ -502,7 +508,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     if(configurator.getMetadataStore() != null) {
       scmMetadataStore = configurator.getMetadataStore();
     } else {
-      scmMetadataStore = new SCMMetadataStoreRDBImpl(conf);
+      scmMetadataStore = new SCMMetadataStoreImpl(conf);
     }
   }
 
@@ -607,7 +613,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
             .setSecretManager(null)
             .build();
 
-    DFSUtil.addPBProtocol(conf, protocol, instance, rpcServer);
+    HddsServerUtil.addPBProtocol(conf, protocol, instance, rpcServer);
     return rpcServer;
   }
 
@@ -1109,5 +1115,14 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    */
   public NetworkTopology getClusterMap() {
     return this.clusterMap;
+  }
+
+  /**
+   * Get the safe mode status of all rules.
+   *
+   * @return map of rule statuses.
+   */
+  public Map<String, Pair<Boolean, String>> getRuleStatus() {
+    return scmSafeModeManager.getRuleStatus();
   }
 }

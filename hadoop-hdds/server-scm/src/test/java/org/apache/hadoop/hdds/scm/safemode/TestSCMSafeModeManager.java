@@ -33,9 +33,11 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
-import org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition;
+import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
+import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreImpl;
 import org.apache.hadoop.hdds.scm.pipeline.MockRatisPipelineProvider;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
@@ -45,8 +47,6 @@ import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager.SafeModeStatus;
 import org.apache.hadoop.hdds.server.events.EventHandler;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
-import org.apache.hadoop.hdds.utils.db.DBStore;
-import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.test.GenericTestUtils;
 
 import org.junit.After;
@@ -76,7 +76,7 @@ public class TestSCMSafeModeManager {
   @Rule
   public final TemporaryFolder tempDir = new TemporaryFolder();
 
-  private DBStore dbStore;
+  private SCMMetadataStore scmMetadataStore;
 
   @Before
   public void setUp() {
@@ -90,13 +90,13 @@ public class TestSCMSafeModeManager {
   public void initDbStore() throws IOException {
     config.set(HddsConfigKeys.OZONE_METADATA_DIRS,
         tempDir.newFolder().getAbsolutePath());
-    dbStore = DBStoreBuilder.createDBStore(config, new SCMDBDefinition());
+    scmMetadataStore = new SCMMetadataStoreImpl(config);
   }
 
   @After
   public void destroyDbStore() throws Exception {
-    if (dbStore != null) {
-      dbStore.close();
+    if (scmMetadataStore.getStore() != null) {
+      scmMetadataStore.getStore().close();
     }
   }
 
@@ -296,8 +296,11 @@ public class TestSCMSafeModeManager {
       OzoneConfiguration conf = createConf(100,
           0.9);
       MockNodeManager mockNodeManager = new MockNodeManager(true, 10);
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(conf);
       PipelineManager pipelineManager = new SCMPipelineManager(conf,
-          mockNodeManager, SCMDBDefinition.PIPELINES.getTable(dbStore), queue);
+          mockNodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), queue);
       scmSafeModeManager = new SCMSafeModeManager(
           conf, containers, pipelineManager, queue);
       fail("testFailWithIncorrectValueForHealthyPipelinePercent");
@@ -314,8 +317,11 @@ public class TestSCMSafeModeManager {
       OzoneConfiguration conf = createConf(0.9,
           200);
       MockNodeManager mockNodeManager = new MockNodeManager(true, 10);
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(conf);
       PipelineManager pipelineManager = new SCMPipelineManager(conf,
-          mockNodeManager, SCMDBDefinition.PIPELINES.getTable(dbStore), queue);
+          mockNodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), queue);
       scmSafeModeManager = new SCMSafeModeManager(
           conf, containers, pipelineManager, queue);
       fail("testFailWithIncorrectValueForOneReplicaPipelinePercent");
@@ -331,8 +337,11 @@ public class TestSCMSafeModeManager {
       OzoneConfiguration conf = createConf(0.9, 0.1);
       conf.setDouble(HddsConfigKeys.HDDS_SCM_SAFEMODE_THRESHOLD_PCT, -1.0);
       MockNodeManager mockNodeManager = new MockNodeManager(true, 10);
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(conf);
       PipelineManager pipelineManager = new SCMPipelineManager(conf,
-          mockNodeManager, SCMDBDefinition.PIPELINES.getTable(dbStore), queue);
+          mockNodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), queue);
       scmSafeModeManager = new SCMSafeModeManager(
           conf, containers, pipelineManager, queue);
       fail("testFailWithIncorrectValueForSafeModePercent");
@@ -355,8 +364,11 @@ public class TestSCMSafeModeManager {
     containers.addAll(HddsTestUtils.getContainerInfo(containerCount));
 
     MockNodeManager mockNodeManager = new MockNodeManager(true, nodeCount);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     SCMPipelineManager pipelineManager = new SCMPipelineManager(conf,
-        mockNodeManager, SCMDBDefinition.PIPELINES.getTable(dbStore), queue);
+        mockNodeManager, containerStateManager,
+        scmMetadataStore.getPipelineTable(), queue);
     PipelineProvider mockRatisProvider =
         new MockRatisPipelineProvider(mockNodeManager,
             pipelineManager.getStateManager(), config, true);
@@ -571,9 +583,11 @@ public class TestSCMSafeModeManager {
       // enable pipeline check
       config.setBoolean(
           HddsConfigKeys.HDDS_SCM_SAFEMODE_PIPELINE_AVAILABILITY_CHECK, true);
-
+      ContainerStateManager containerStateManager =
+          new ContainerStateManager(config);
       SCMPipelineManager pipelineManager = new SCMPipelineManager(config,
-          nodeManager, SCMDBDefinition.PIPELINES.getTable(dbStore), queue);
+          nodeManager, containerStateManager,
+          scmMetadataStore.getPipelineTable(), queue);
 
       PipelineProvider mockRatisProvider =
           new MockRatisPipelineProvider(nodeManager,
@@ -626,8 +640,11 @@ public class TestSCMSafeModeManager {
     config.setBoolean(
         HddsConfigKeys.HDDS_SCM_SAFEMODE_PIPELINE_AVAILABILITY_CHECK, true);
 
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(config);
     SCMPipelineManager pipelineManager = new SCMPipelineManager(config,
-        nodeManager, SCMDBDefinition.PIPELINES.getTable(dbStore), queue);
+        nodeManager, containerStateManager,
+        scmMetadataStore.getPipelineTable(), queue);
 
 
     PipelineProvider mockRatisProvider =

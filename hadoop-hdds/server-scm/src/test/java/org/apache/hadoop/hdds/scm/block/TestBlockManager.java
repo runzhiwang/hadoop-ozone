@@ -18,13 +18,15 @@
 package org.apache.hadoop.hdds.scm.block;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -34,15 +36,17 @@ import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.TestUtils;
 import org.apache.hadoop.hdds.scm.container.CloseContainerEventHandler;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.container.SCMContainerManager;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
-import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreRDBImpl;
+import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreImpl;
 import org.apache.hadoop.hdds.scm.pipeline.MockRatisPipelineProvider;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
+import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineProvider;
 import org.apache.hadoop.hdds.scm.pipeline.SCMPipelineManager;
 import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager;
@@ -107,10 +111,13 @@ public class TestBlockManager {
     nodeManager = new MockNodeManager(true, 10);
     eventQueue = new EventQueue();
 
-    scmMetadataStore = new SCMMetadataStoreRDBImpl(conf);
+    scmMetadataStore = new SCMMetadataStoreImpl(conf);
     scmMetadataStore.start(conf);
+    ContainerStateManager containerStateManager =
+        new ContainerStateManager(conf);
     pipelineManager =
         new SCMPipelineManager(conf, nodeManager,
+            containerStateManager,
             scmMetadataStore.getPipelineTable(),
             eventQueue);
     pipelineManager.allowPipelineCreation();
@@ -124,7 +131,7 @@ public class TestBlockManager {
         new SCMContainerManager(conf,
             scmMetadataStore.getContainerTable(),
             scmMetadataStore.getStore(),
-            pipelineManager);
+            pipelineManager, containerStateManager);
     SCMSafeModeManager safeModeManager = new SCMSafeModeManager(conf,
         containerManager.getContainers(), pipelineManager, eventQueue) {
       @Override
@@ -189,8 +196,9 @@ public class TestBlockManager {
         .allocateBlock(DEFAULT_BLOCK_SIZE, type, factor, OzoneConsts.OZONE,
             excludeList);
     Assert.assertNotNull(block);
-    Assert.assertNotEquals(block.getPipeline().getId(),
-        excludeList.getPipelineIds().get(0));
+    for (PipelineID id : excludeList.getPipelineIds()) {
+      Assert.assertNotEquals(block.getPipeline().getId(), id);
+    }
 
     for (Pipeline pipeline : pipelineManager.getPipelines(type, factor)) {
       excludeList.addPipeline(pipeline.getId());
@@ -232,6 +240,63 @@ public class TestBlockManager {
       CompletableFuture
           .allOf(futureList.toArray(new CompletableFuture[futureList.size()]))
           .get();
+    } catch (Exception e) {
+      Assert.fail("testAllocateBlockInParallel failed");
+    }
+  }
+
+  @Test
+  public void testBlockDistribution() throws Exception {
+    int threadCount = numContainerPerOwnerInPipeline *
+            numContainerPerOwnerInPipeline;
+    List<ExecutorService> executors = new ArrayList<>(threadCount);
+    for (int i = 0; i < threadCount; i++) {
+      executors.add(Executors.newSingleThreadExecutor());
+    }
+    pipelineManager.createPipeline(type, factor);
+    TestUtils.openAllRatisPipelines(pipelineManager);
+    Map<Long, List<AllocatedBlock>> allocatedBlockMap =
+            new ConcurrentHashMap<>();
+    List<CompletableFuture<AllocatedBlock>> futureList =
+            new ArrayList<>(threadCount);
+    for (int i = 0; i < threadCount; i++) {
+      final CompletableFuture<AllocatedBlock> future =
+              new CompletableFuture<>();
+      CompletableFuture.supplyAsync(() -> {
+        try {
+          List<AllocatedBlock> blockList;
+          AllocatedBlock block = blockManager
+                  .allocateBlock(DEFAULT_BLOCK_SIZE, type, factor,
+                          OzoneConsts.OZONE,
+                          new ExcludeList());
+          long containerId = block.getBlockID().getContainerID();
+          if (!allocatedBlockMap.containsKey(containerId)) {
+            blockList = new ArrayList<>();
+          } else {
+            blockList = allocatedBlockMap.get(containerId);
+          }
+          blockList.add(block);
+          allocatedBlockMap.put(containerId, blockList);
+          future.complete(block);
+        } catch (IOException e) {
+          future.completeExceptionally(e);
+        }
+        return future;
+      }, executors.get(i));
+      futureList.add(future);
+    }
+    try {
+      CompletableFuture
+              .allOf(futureList.toArray(
+                      new CompletableFuture[futureList.size()])).get();
+      Assert.assertTrue(pipelineManager.getPipelines(type).size() == 1);
+      Assert.assertTrue(
+              allocatedBlockMap.size() == numContainerPerOwnerInPipeline);
+      Assert.assertTrue(allocatedBlockMap.
+              values().size() == numContainerPerOwnerInPipeline);
+      allocatedBlockMap.values().stream().forEach(v -> {
+        Assert.assertTrue(v.size() == numContainerPerOwnerInPipeline);
+      });
     } catch (Exception e) {
       Assert.fail("testAllocateBlockInParallel failed");
     }

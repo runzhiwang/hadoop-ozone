@@ -40,8 +40,9 @@ public interface CommandHandler {
    * @param container - Ozone Container.
    * @param context - Current Context.
    * @param connectionManager - The SCMs that we are talking to.
+   * @return HandleResult
    */
-  void handle(SCMCommand command, OzoneContainer container,
+  HandleResult handle(SCMCommand command, OzoneContainer container,
       StateContext context, SCMConnectionManager connectionManager);
 
   /**
@@ -79,5 +80,14 @@ public interface CommandHandler {
    */
   default void stop() {
     // Default implementation does nothing
+  }
+
+  /**
+   * Stores the result of handle command.
+   */
+  enum HandleResult {
+    SUCC,
+    FAIL,
+    LOCK_FAIL,
   }
 }

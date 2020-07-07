@@ -61,7 +61,7 @@ public class DeleteContainerCommandHandler implements CommandHandler {
   }
 
   @Override
-  public void handle(final SCMCommand command,
+  public HandleResult handle(final SCMCommand command,
                      final OzoneContainer ozoneContainer,
                      final StateContext context,
                      final SCMConnectionManager connectionManager) {
@@ -80,6 +80,7 @@ public class DeleteContainerCommandHandler implements CommandHandler {
         totalTime.getAndAdd(Time.monotonicNow() - startTime);
       }
     });
+    return HandleResult.SUCC;
   }
 
   @Override

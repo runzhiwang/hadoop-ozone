@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.hdds.scm.container.ContainerStateManager;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
@@ -49,10 +50,12 @@ public class ReconPipelineManager extends SCMPipelineManager {
 
   public ReconPipelineManager(ConfigurationSource conf,
       NodeManager nodeManager,
+      ContainerStateManager containerStateManager,
       Table<PipelineID, Pipeline> pipelineStore,
       EventPublisher eventPublisher)
       throws IOException {
-    super(conf, nodeManager, pipelineStore, eventPublisher,
+    super(conf, nodeManager, containerStateManager,
+        pipelineStore, eventPublisher,
         new PipelineStateManager(),
         new ReconPipelineFactory());
     initializePipelineState();

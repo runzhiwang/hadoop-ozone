@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerDoubleBufferHelper;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
+import org.apache.hadoop.util.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.google.common.base.Optional;
@@ -66,10 +67,23 @@ public class OMVolumeSetOwnerRequest extends OMVolumeRequest {
   }
 
   @Override
+  public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
+
+    long modificationTime = Time.now();
+    SetVolumePropertyRequest modifiedRequest = getOmRequest()
+        .getSetVolumePropertyRequest().toBuilder()
+        .setModificationTime(modificationTime).build();
+
+    return getOmRequest().toBuilder()
+        .setSetVolumePropertyRequest(modifiedRequest.toBuilder())
+        .setUserInfo(getUserInfo())
+        .build();
+  }
+
+  @Override
   public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
       long transactionLogIndex,
       OzoneManagerDoubleBufferHelper ozoneManagerDoubleBufferHelper) {
-
     SetVolumePropertyRequest setVolumePropertyRequest =
         getOmRequest().getSetVolumePropertyRequest();
     Preconditions.checkNotNull(setVolumePropertyRequest);
@@ -134,7 +148,6 @@ public class OMVolumeSetOwnerRequest extends OMVolumeRequest {
             transactionLogIndex, setVolumePropertyRequest);
         return new OMVolumeSetOwnerResponse(createReplayOMResponse(omResponse));
       }
-
       oldOwner = omVolumeArgs.getOwnerName();
 
       // Return OK immediately if newOwner is the same as oldOwner.
@@ -145,7 +158,7 @@ public class OMVolumeSetOwnerRequest extends OMVolumeRequest {
             "Volume '" + volume + "' owner is already '" + newOwner + "'.")
           .setSuccess(false);
         omResponse.setSetVolumePropertyResponse(
-            SetVolumePropertyResponse.newBuilder().build());
+            SetVolumePropertyResponse.newBuilder().setResponse(false).build());
         omClientResponse = new OMVolumeSetOwnerResponse(omResponse.build());
         // Note: addResponseToDoubleBuffer would be executed in finally block.
         return omClientResponse;
@@ -167,6 +180,10 @@ public class OMVolumeSetOwnerRequest extends OMVolumeRequest {
       omVolumeArgs.setUpdateID(transactionLogIndex,
           ozoneManager.isRatisEnabled());
 
+      // Update modificationTime.
+      omVolumeArgs.setModificationTime(
+          setVolumePropertyRequest.getModificationTime());
+
       // Update cache.
       omMetadataManager.getUserTable().addCacheEntry(
           new CacheKey<>(omMetadataManager.getUserKey(newOwner)),
@@ -181,10 +198,9 @@ public class OMVolumeSetOwnerRequest extends OMVolumeRequest {
           new CacheValue<>(Optional.of(omVolumeArgs), transactionLogIndex));
 
       omResponse.setSetVolumePropertyResponse(
-          SetVolumePropertyResponse.newBuilder().build());
+          SetVolumePropertyResponse.newBuilder().setResponse(true).build());
       omClientResponse = new OMVolumeSetOwnerResponse(omResponse.build(),
           oldOwner, oldOwnerVolumeList, newOwnerVolumeList, omVolumeArgs);
-
     } catch (IOException ex) {
       exception = ex;
       omClientResponse = new OMVolumeSetOwnerResponse(

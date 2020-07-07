@@ -581,6 +581,11 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
     return this.lock.writeLock().isHeldByCurrentThread();
   }
 
+  @Override
+  public boolean tryWriteLock() {
+    return lock.writeLock().tryLock();
+  }
+
   /**
    * Acquire read lock, unless interrupted while waiting.
    * @throws InterruptedException
@@ -671,6 +676,9 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       break;
     case UNHEALTHY:
       state = ContainerReplicaProto.State.UNHEALTHY;
+      break;
+    case DELETED:
+      state = ContainerReplicaProto.State.DELETED;
       break;
     default:
       throw new StorageContainerException("Invalid Container state found: " +

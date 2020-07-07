@@ -92,15 +92,16 @@ public final class CommandDispatcher {
    *
    * @param command - SCM Command.
    */
-  public void handle(SCMCommand command) {
+  public CommandHandler.HandleResult handle(SCMCommand command) {
     Preconditions.checkNotNull(command);
     CommandHandler handler = handlerMap.get(command.getType());
     if (handler != null) {
-      handler.handle(command, container, context, connectionManager);
+      return handler.handle(command, container, context, connectionManager);
     } else {
       LOG.error("Unknown SCM Command queued. There is no handler for this " +
           "command. Command: {}", command.getType().getDescriptorForType()
           .getName());
+      return CommandHandler.HandleResult.FAIL;
     }
   }
 

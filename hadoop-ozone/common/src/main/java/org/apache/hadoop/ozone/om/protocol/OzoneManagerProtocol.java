@@ -26,7 +26,6 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
-import org.apache.hadoop.ozone.om.ha.OMFailoverProxyProvider;
 import org.apache.hadoop.ozone.om.helpers.DBUpdates;
 import org.apache.hadoop.ozone.om.helpers.OmBucketArgs;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
@@ -79,9 +78,11 @@ public interface OzoneManagerProtocol
    * Changes the owner of a volume.
    * @param volume  - Name of the volume.
    * @param owner - Name of the owner.
+   * @return true if operation succeeded, false if specified user is
+   *         already the owner.
    * @throws IOException
    */
-  void setOwner(String volume, String owner) throws IOException;
+  boolean setOwner(String volume, String owner) throws IOException;
 
   /**
    * Changes the Quota on a volume.
@@ -224,6 +225,16 @@ public interface OzoneManagerProtocol
   void deleteKey(OmKeyArgs args) throws IOException;
 
   /**
+   * Deletes existing key/keys. This interface supports delete
+   * multiple keys and a single key. Used by deleting files
+   * through OzoneFileSystem.
+   *
+   * @param args the list args of the key.
+   * @throws IOException
+   */
+  void deleteKeys(List<OmKeyArgs> args) throws IOException;
+
+  /**
    * Deletes an existing empty bucket from volume.
    * @param volume - Name of the volume.
    * @param bucket - Name of the bucket.
@@ -356,12 +367,6 @@ public interface OzoneManagerProtocol
    * @throws IOException
    */
   S3SecretValue getS3Secret(String kerberosID) throws IOException;
-
-  /**
-   * Get the OM Client's Retry and Failover Proxy provider.
-   * @return OMFailoverProxyProvider
-   */
-  OMFailoverProxyProvider getOMFailoverProxyProvider();
 
   /**
    * OzoneFS api to get file status for an entry.

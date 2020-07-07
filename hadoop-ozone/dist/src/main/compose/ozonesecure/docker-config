@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+CORE-SITE.XML_fs.ofs.impl=org.apache.hadoop.fs.ozone.RootedOzoneFileSystem
 CORE-SITE.XML_fs.o3fs.impl=org.apache.hadoop.fs.ozone.OzoneFileSystem
 OZONE-SITE.XML_ozone.om.volume.listall.allowed=false
 
@@ -45,7 +46,7 @@ HDFS-SITE.XML_dfs.datanode.address=0.0.0.0:1019
 HDFS-SITE.XML_dfs.datanode.http.address=0.0.0.0:1012
 CORE-SITE.XML_dfs.data.transfer.protection=authentication
 CORE-SITE.XML_hadoop.security.authentication=kerberos
-CORE-SITE.XML_hadoop.security.auth_to_local=RULE:[2:$1@$0](.*)s/.*/root/
+CORE-SITE.XML_hadoop.security.auth_to_local="RULE:[2:$1](testuser2.*) RULE:[2:$1@$0](.*)s/.*/root/"
 CORE-SITE.XML_hadoop.security.key.provider.path=kms://http@kms:9600/kms
 
 

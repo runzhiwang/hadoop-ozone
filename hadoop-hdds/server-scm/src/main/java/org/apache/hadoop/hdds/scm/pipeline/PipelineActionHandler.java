@@ -87,9 +87,11 @@ public class PipelineActionHandler
     } catch (PipelineNotFoundException e) {
       LOG.warn("Pipeline action {} received for unknown pipeline {}, " +
           "firing close pipeline event.", action, pid);
-      publisher.fireEvent(SCMEvents.DATANODE_COMMAND,
-          new CommandForDatanode<>(datanode.getUuid(),
-              new ClosePipelineCommand(pid)));
+      if (!pipelineManager.isPipelineWaitDestroy(pid)) {
+        publisher.fireEvent(SCMEvents.DATANODE_COMMAND,
+            new CommandForDatanode<>(datanode.getUuid(),
+                new ClosePipelineCommand(pid)));
+      }
     } catch (IOException ioe) {
       LOG.error("Could not execute pipeline action={} pipeline={}",
           action, pid, ioe);

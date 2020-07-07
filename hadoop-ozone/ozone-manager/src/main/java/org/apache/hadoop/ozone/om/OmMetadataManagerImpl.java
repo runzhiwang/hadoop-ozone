@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,7 @@ import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.hdds.utils.db.cache.TableCacheImpl;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.common.BlockGroup;
+import org.apache.hadoop.ozone.om.codec.OMTransactionInfoCodec;
 import org.apache.hadoop.ozone.om.codec.OmBucketInfoCodec;
 import org.apache.hadoop.ozone.om.codec.OmKeyInfoCodec;
 import org.apache.hadoop.ozone.om.codec.OmMultipartKeyInfoCodec;
@@ -64,6 +66,7 @@ import org.apache.hadoop.ozone.om.helpers.OzoneFSUtils;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.S3SecretValue;
 import org.apache.hadoop.ozone.om.lock.OzoneManagerLock;
+import org.apache.hadoop.ozone.om.ratis.OMTransactionInfo;
 import org.apache.hadoop.ozone.protocol.proto
     .OzoneManagerProtocolProtos.UserVolumeInfo;
 import org.apache.hadoop.ozone.security.OzoneTokenIdentifier;
@@ -76,6 +79,7 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OPEN_KEY_EXPIRE_THRE
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OPEN_KEY_EXPIRE_THRESHOLD_SECONDS_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
+
 import org.eclipse.jetty.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,8 +112,6 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
    * |----------------------------------------------------------------------|
    * | openKey            | /volumeName/bucketName/keyName/id->KeyInfo      |
    * |----------------------------------------------------------------------|
-   * | s3Table            | s3BucketName -> /volumeName/bucketName          |
-   * |----------------------------------------------------------------------|
    * | s3SecretTable      | s3g_access_key_id -> s3Secret                   |
    * |----------------------------------------------------------------------|
    * | dTokenTable        | s3g_access_key_id -> s3Secret                   |
@@ -117,6 +119,9 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
    * | prefixInfoTable    | prefix -> PrefixInfo                            |
    * |----------------------------------------------------------------------|
    * |  multipartInfoTable| /volumeName/bucketName/keyName/uploadId ->...   |
+   * |----------------------------------------------------------------------|
+   * |----------------------------------------------------------------------|
+   * |  transactionInfoTable | #TRANSACTIONINFO -> OMTransactionInfo        |
    * |----------------------------------------------------------------------|
    */
 
@@ -126,11 +131,12 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
   public static final String KEY_TABLE = "keyTable";
   public static final String DELETED_TABLE = "deletedTable";
   public static final String OPEN_KEY_TABLE = "openKeyTable";
-  public static final String S3_TABLE = "s3Table";
   public static final String MULTIPARTINFO_TABLE = "multipartInfoTable";
   public static final String S3_SECRET_TABLE = "s3SecretTable";
   public static final String DELEGATION_TOKEN_TABLE = "dTokenTable";
   public static final String PREFIX_TABLE = "prefixTable";
+  public static final String TRANSACTION_INFO_TABLE =
+      "transactionInfoTable";
 
   private DBStore store;
 
@@ -143,14 +149,17 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
   private Table keyTable;
   private Table deletedTable;
   private Table openKeyTable;
-  private Table s3Table;
   private Table<String, OmMultipartKeyInfo> multipartInfoTable;
   private Table s3SecretTable;
   private Table dTokenTable;
   private Table prefixTable;
+  private Table transactionInfoTable;
   private boolean isRatisEnabled;
 
+  private Map<String, Table> tableMap = new HashMap<>();
+
   public OmMetadataManagerImpl(OzoneConfiguration conf) throws IOException {
+
     this.lock = new OzoneManagerLock(conf);
     this.openKeyExpireThresholdMS = 1000L * conf.getInt(
         OZONE_OPEN_KEY_EXPIRE_THRESHOLD_SECONDS,
@@ -208,11 +217,6 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
   }
 
   @Override
-  public Table<String, String> getS3Table() {
-    return s3Table;
-  }
-
-  @Override
   public Table<String, OmPrefixInfo> getPrefixTable() {
     return prefixTable;
   }
@@ -232,6 +236,7 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
       LOG.error(String.format(logMessage, name));
       throw new IOException(String.format(errMsg, name));
     }
+    this.tableMap.put(name, table);
   }
 
   /**
@@ -260,16 +265,24 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
         rocksDBConfiguration.setSyncOption(true);
       }
 
-      DBStoreBuilder dbStoreBuilder = DBStoreBuilder.newBuilder(configuration,
-          rocksDBConfiguration).setName(OM_DB_NAME)
-          .setPath(Paths.get(metaDir.getPath()));
+      this.store = loadDB(configuration, metaDir);
 
-      this.store = addOMTablesAndCodecs(dbStoreBuilder).build();
       initializeOmTables();
     }
   }
 
-  protected DBStoreBuilder addOMTablesAndCodecs(DBStoreBuilder builder) {
+  public static DBStore loadDB(OzoneConfiguration configuration, File metaDir)
+      throws IOException {
+    RocksDBConfiguration rocksDBConfiguration =
+        configuration.getObject(RocksDBConfiguration.class);
+    DBStoreBuilder dbStoreBuilder = DBStoreBuilder.newBuilder(configuration,
+        rocksDBConfiguration).setName(OM_DB_NAME)
+        .setPath(Paths.get(metaDir.getPath()));
+    DBStore dbStore = addOMTablesAndCodecs(dbStoreBuilder).build();
+    return dbStore;
+  }
+
+  protected static DBStoreBuilder addOMTablesAndCodecs(DBStoreBuilder builder) {
 
     return builder.addTable(USER_TABLE)
         .addTable(VOLUME_TABLE)
@@ -277,11 +290,11 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
         .addTable(KEY_TABLE)
         .addTable(DELETED_TABLE)
         .addTable(OPEN_KEY_TABLE)
-        .addTable(S3_TABLE)
         .addTable(MULTIPARTINFO_TABLE)
         .addTable(DELEGATION_TOKEN_TABLE)
         .addTable(S3_SECRET_TABLE)
         .addTable(PREFIX_TABLE)
+        .addTable(TRANSACTION_INFO_TABLE)
         .addCodec(OzoneTokenIdentifier.class, new TokenIdentifierCodec())
         .addCodec(OmKeyInfo.class, new OmKeyInfoCodec())
         .addCodec(RepeatedOmKeyInfo.class, new RepeatedOmKeyInfoCodec())
@@ -290,7 +303,8 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
         .addCodec(UserVolumeInfo.class, new UserVolumeInfoCodec())
         .addCodec(OmMultipartKeyInfo.class, new OmMultipartKeyInfoCodec())
         .addCodec(S3SecretValue.class, new S3SecretValueCodec())
-        .addCodec(OmPrefixInfo.class, new OmPrefixInfoCodec());
+        .addCodec(OmPrefixInfo.class, new OmPrefixInfoCodec())
+        .addCodec(OMTransactionInfo.class, new OMTransactionInfoCodec());
   }
 
   /**
@@ -328,9 +342,6 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
         this.store.getTable(OPEN_KEY_TABLE, String.class, OmKeyInfo.class);
     checkTableStatus(openKeyTable, OPEN_KEY_TABLE);
 
-    s3Table = this.store.getTable(S3_TABLE, String.class, String.class);
-    checkTableStatus(s3Table, S3_TABLE);
-
     multipartInfoTable = this.store.getTable(MULTIPARTINFO_TABLE,
         String.class, OmMultipartKeyInfo.class);
     checkTableStatus(multipartInfoTable, MULTIPARTINFO_TABLE);
@@ -346,6 +357,10 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
     prefixTable = this.store.getTable(PREFIX_TABLE, String.class,
         OmPrefixInfo.class);
     checkTableStatus(prefixTable, PREFIX_TABLE);
+
+    transactionInfoTable = this.store.getTable(TRANSACTION_INFO_TABLE,
+        String.class, OMTransactionInfo.class);
+    checkTableStatus(transactionInfoTable, TRANSACTION_INFO_TABLE);
   }
 
   /**
@@ -1033,6 +1048,11 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
     return s3SecretTable;
   }
 
+  @Override
+  public Table<String, OMTransactionInfo> getTransactionInfoTable() {
+    return transactionInfoTable;
+  }
+
   /**
    * Update store used by subclass.
    *
@@ -1040,6 +1060,25 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
    */
   protected void setStore(DBStore store) {
     this.store = store;
+  }
+
+  @Override
+  public Map<String, Table> listTables() {
+    return tableMap;
+  }
+
+  @Override
+  public Table getTable(String tableName) {
+    Table table = tableMap.get(tableName);
+    if (table == null) {
+      throw  new IllegalArgumentException("Unknown table " + tableName);
+    }
+    return table;
+  }
+
+  @Override
+  public Set<String> listTableNames() {
+    return tableMap.keySet();
   }
 
 }

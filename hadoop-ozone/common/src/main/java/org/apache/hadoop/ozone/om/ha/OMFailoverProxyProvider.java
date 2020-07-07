@@ -174,7 +174,7 @@ public class OMFailoverProxyProvider implements
         ProtobufRpcEngine.class);
     return RPC.getProxy(OzoneManagerProtocolPB.class, omVersion, omAddress, ugi,
         hadoopConf, NetUtils.getDefaultSocketFactory(hadoopConf),
-            (int) OmUtils.getOMClientRpcTimeOut(hadoopConf));
+            (int) OmUtils.getOMClientRpcTimeOut(conf));
 
   }
 
@@ -198,7 +198,13 @@ public class OMFailoverProxyProvider implements
     if (proxyInfo.proxy == null) {
       InetSocketAddress address = omProxyInfos.get(nodeId).getAddress();
       try {
-        proxyInfo.proxy = createOMProxy(address);
+        OzoneManagerProtocolPB proxy = createOMProxy(address);
+        try {
+          proxyInfo.proxy = proxy;
+        } catch (IllegalAccessError iae) {
+          omProxies.put(nodeId,
+              new ProxyInfo<>(proxy, proxyInfo.proxyInfo));
+        }
       } catch (IOException ioe) {
         LOG.error("{} Failed to create RPC proxy to OM at {}",
             this.getClass().getSimpleName(), address, ioe);

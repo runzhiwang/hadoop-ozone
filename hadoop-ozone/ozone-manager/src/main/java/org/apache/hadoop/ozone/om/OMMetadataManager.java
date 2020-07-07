@@ -18,6 +18,7 @@ package org.apache.hadoop.ozone.om;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -30,6 +31,7 @@ import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.S3SecretValue;
 import org.apache.hadoop.ozone.om.lock.OzoneManagerLock;
+import org.apache.hadoop.ozone.om.ratis.OMTransactionInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
     .UserVolumeInfo;
 import org.apache.hadoop.ozone.security.OzoneTokenIdentifier;
@@ -301,14 +303,6 @@ public interface OMMetadataManager {
   Table<OzoneTokenIdentifier, Long> getDelegationTokenTable();
 
   /**
-   * Gets the S3Bucket to Ozone Volume/bucket mapping table.
-   *
-   * @return Table.
-   */
-
-  Table<String, String> getS3Table();
-
-  /**
    * Gets the Ozone prefix path to its acl mapping table.
    * @return Table.
    */
@@ -340,6 +334,8 @@ public interface OMMetadataManager {
    */
   Table<String, S3SecretValue> getS3SecretTable();
 
+  Table<String, OMTransactionInfo> getTransactionInfoTable();
+
   /**
    * Returns number of rows in a table.  This should not be used for very
    * large tables.
@@ -367,4 +363,23 @@ public interface OMMetadataManager {
    */
   Set<String> getMultipartUploadKeys(String volumeName,
       String bucketName, String prefix) throws IOException;
+
+  /**
+   * Return table mapped to the specified table name.
+   * @param tableName
+   * @return Table
+   */
+  Table getTable(String tableName);
+
+  /**
+   * Return a map of tableName and table in OM DB.
+   * @return map of table and table name.
+   */
+  Map<String, Table> listTables();
+
+  /**
+   * Return Set of table names created in OM DB.
+   * @return table names in OM DB.
+   */
+  Set<String> listTableNames();
 }
