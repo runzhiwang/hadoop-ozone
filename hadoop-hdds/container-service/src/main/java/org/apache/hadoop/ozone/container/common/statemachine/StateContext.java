@@ -76,11 +76,11 @@ public class StateContext {
   private boolean shutdownGracefully = false;
 
   /**
-   * Starting with a 2 sec heartbeat frequency which will be updated to the
+   * Starting with a 5 sec heartbeat frequency which will be updated to the
    * real HB frequency after scm registration. With this method the
    * initial registration could be significant faster.
    */
-  private AtomicLong heartbeatFrequency = new AtomicLong(2000);
+  private AtomicLong heartbeatFrequency = new AtomicLong(5000);
 
   /**
    * Constructs a StateContext.
