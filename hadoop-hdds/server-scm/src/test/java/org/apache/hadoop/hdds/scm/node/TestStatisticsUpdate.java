@@ -63,7 +63,7 @@ public class TestStatisticsUpdate {
     final String storageDir = GenericTestUtils.getTempPath(
         TestDeadNodeHandler.class.getSimpleName() + UUID.randomUUID());
     conf.set(HddsConfigKeys.OZONE_METADATA_DIRS, storageDir);
-    conf.set(HddsConfigKeys.HDDS_HEARTBEAT_INTERVAL, "100ms");
+    conf.set(HddsConfigKeys.HDDS_HEARTBEAT_INTERVAL, "1000ms");
     conf.set(ScmConfigKeys.OZONE_SCM_HEARTBEAT_PROCESS_INTERVAL, "50ms");
     conf.set(ScmConfigKeys.OZONE_SCM_STALENODE_INTERVAL, "1s");
     conf.set(ScmConfigKeys.OZONE_SCM_DEADNODE_INTERVAL, "2s");

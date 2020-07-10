@@ -59,7 +59,7 @@ public class TestRatisPipelineLeader {
   @BeforeClass
   public static void setup() throws Exception {
     conf = new OzoneConfiguration();
-    conf.set(HddsConfigKeys.HDDS_HEARTBEAT_INTERVAL, "100ms");
+    conf.set(HddsConfigKeys.HDDS_HEARTBEAT_INTERVAL, "1000ms");
     cluster = MiniOzoneCluster
         .newBuilder(conf)
         .setNumDatanodes(3)
