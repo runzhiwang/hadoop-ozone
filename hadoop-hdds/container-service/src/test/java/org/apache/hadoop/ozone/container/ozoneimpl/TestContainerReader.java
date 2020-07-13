@@ -126,8 +126,8 @@ public class TestContainerReader {
   private void markBlocksForDelete(KeyValueContainer keyValueContainer,
       boolean setMetaData, List<Long> blockNames, int count) throws Exception {
     String category = keyValueContainer.getContainerData().getCategoryInDB();
-    try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
-        .getContainerData(), conf)) {
+    try(ReferenceCountedDB metadataStore = DBManager.getDB(keyValueContainer
+        .getContainerData().getDbPath())) {
       long containerID = keyValueContainer.getContainerData()
           .getContainerID();
 
@@ -171,7 +171,6 @@ public class TestContainerReader {
             category,
             containerBytesUsedKey,
             Longs.toByteArray(bytesUsed - (count * blockLen)));
-
       }
     }
 
@@ -182,8 +181,8 @@ public class TestContainerReader {
     long containerId = keyValueContainer.getContainerData().getContainerID();
 
     List<Long> blkNames = new ArrayList<>();
-    try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
-        .getContainerData(), conf)) {
+    try(ReferenceCountedDB metadataStore = DBManager.getDB(keyValueContainer
+        .getContainerData().getDbPath())) {
 
       String category = keyValueContainer.getContainerData()
           .getCategoryInDB();

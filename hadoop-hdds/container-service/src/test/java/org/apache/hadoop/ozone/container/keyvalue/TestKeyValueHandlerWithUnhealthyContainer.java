@@ -28,6 +28,7 @@ import org.apache.hadoop.ozone.container.common.impl.TestHddsDispatcher;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.junit.Assert;
 import org.junit.Test;
@@ -151,7 +152,7 @@ public class TestKeyValueHandlerWithUnhealthyContainer {
         stateMachine.getDatanodeDetails().getUuidString(),
         mock(ContainerSet.class),
         mock(MutableVolumeSet.class),
-        mock(ContainerMetrics.class), TestHddsDispatcher.NO_OP_ICR_SENDER);
+        mock(ContainerMetrics.class), TestHddsDispatcher.NO_OP_ICR_SENDER, null);
   }
 
   private KeyValueContainer getMockUnhealthyContainer() {

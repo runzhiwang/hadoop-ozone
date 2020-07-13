@@ -170,13 +170,16 @@ public class TestOzoneContainer {
     // When OzoneContainer is started, the containers from disk should be
     // loaded into the containerSet.
     // Also expected to initialize committed space for each volume.
+    dbManager.close();
     OzoneContainer ozoneContainer = new
         OzoneContainer(datanodeDetails, conf, context, null);
+    ozoneContainer.start(scmId);
 
     ContainerSet containerset = ozoneContainer.getContainerSet();
     assertEquals(numTestContainers, containerset.containerCount());
 
     verifyCommittedSpace(ozoneContainer);
+    ozoneContainer.stop();
   }
 
   @Test
@@ -233,8 +236,8 @@ public class TestOzoneContainer {
     long freeBytes = container.getContainerData().getMaxSize();
     long containerId = container.getContainerData().getContainerID();
     String category = container.getContainerData().getCategoryInDB();
-    ReferenceCountedDB db = BlockUtils.getDB(container
-        .getContainerData(), conf);
+    ReferenceCountedDB db = DBManager.getDB(container
+        .getContainerData().getDbPath());
 
     for (int bi = 0; bi < blocks; bi++) {
       // Creating BlockData

@@ -110,6 +110,17 @@ public class KeyValueContainerData extends ContainerData {
     this.deleteTransactionId = 0;
   }
 
+  public KeyValueContainerData(long id, ChunkLayOutVersion layOutVersion,
+      long size, String dbPath, String categoryInDB, String originPipelineId,
+      String originNodeId) {
+    super(ContainerProtos.ContainerType.KeyValueContainer, id, layOutVersion,
+        size, originPipelineId, originNodeId);
+    this.dbPath = dbPath;
+    this.categoryInDB = categoryInDB;
+    this.numPendingDeletionBlocks = new AtomicInteger(0);
+    this.deleteTransactionId = 0;
+  }
+
 
   /**
    * Sets Container dbPath. This should be called only during creation of

@@ -125,7 +125,8 @@ public class ContainerReader implements Runnable {
       File[] containerTopDirs = currentDir.listFiles();
       if (containerTopDirs != null) {
         for (File containerTopDir : containerTopDirs) {
-          if (containerTopDir.isDirectory()) {
+          if (containerTopDir.isDirectory() &&
+              !containerTopDir.getName().equals("rocksdb")) {
             File[] containerDirs = containerTopDir.listFiles();
             if (containerDirs != null) {
               for (File containerDir : containerDirs) {

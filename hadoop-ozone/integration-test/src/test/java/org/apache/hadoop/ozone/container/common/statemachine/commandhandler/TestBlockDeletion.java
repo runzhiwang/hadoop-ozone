@@ -42,6 +42,7 @@ import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -325,7 +326,7 @@ public class TestBlockDeletion {
       KeyValueContainerData containerData = (KeyValueContainerData) dnContainerSet
           .getContainer(blockID.getContainerID()).getContainerData();
       try(ReferenceCountedDB db =
-          BlockUtils.getDB(containerData, conf)) {
+          DBManager.getDB(containerData.getDbPath())) {
         byte[] key = DBKey.getBlockKey(
             blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNotNull(db.getStore().get(
@@ -345,7 +346,7 @@ public class TestBlockDeletion {
           .getContainer(blockID.getContainerID()).getContainerData();
       String category = containerData.getCategoryInDB();
       try(ReferenceCountedDB db =
-          BlockUtils.getDB(containerData, conf)) {
+          DBManager.getDB(containerData.getDbPath())) {
         byte[] blockKey = DBKey.getBlockKey(
             blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNull(db.getStore().get(

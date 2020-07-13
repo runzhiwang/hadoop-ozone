@@ -55,6 +55,7 @@ import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerGrpc;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerSpi;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
@@ -103,6 +104,7 @@ public class TestSecureContainerServer {
       = GenericTestUtils.getTestDir("dfs").getAbsolutePath() + File.separator;
   private static final OzoneConfiguration CONF = new OzoneConfiguration();
   private static CertificateClientTestImpl caClient;
+  private static DBManager dbManager;
 
   private GrpcReplicationService createReplicationService(
       ContainerController containerController) {
@@ -120,7 +122,10 @@ public class TestSecureContainerServer {
   }
 
   @After
-  public void cleanUp() {
+  public void cleanUp() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     FileUtils.deleteQuietly(new File(CONF.get(HDDS_DATANODE_DIR_KEY)));
   }
 
@@ -149,6 +154,7 @@ public class TestSecureContainerServer {
         Paths.get(TEST_DIR, "dfs", "data", "hdds",
             RandomStringUtils.randomAlphabetic(4)).toString());
     VolumeSet volumeSet = new MutableVolumeSet(dd.getUuidString(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId.toString(), conf);
     DatanodeStateMachine stateMachine = Mockito.mock(
         DatanodeStateMachine.class);
     StateContext context = Mockito.mock(StateContext.class);
@@ -159,10 +165,10 @@ public class TestSecureContainerServer {
     for (ContainerProtos.ContainerType containerType :
         ContainerProtos.ContainerType.values()) {
       handlers.put(containerType,
-          Handler.getHandlerForContainerType(containerType, conf,
+          Handler.getHandlerForContainerTypeWithDBManager(containerType, conf,
               dd.getUuid().toString(),
               containerSet, volumeSet, metrics,
-              TestHddsDispatcher.NO_OP_ICR_SENDER));
+              TestHddsDispatcher.NO_OP_ICR_SENDER, dbManager));
     }
     HddsDispatcher hddsDispatcher = new HddsDispatcher(
         conf, containerSet, volumeSet, handlers, context, metrics,

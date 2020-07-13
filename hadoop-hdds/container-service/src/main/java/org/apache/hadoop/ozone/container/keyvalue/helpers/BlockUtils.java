@@ -24,7 +24,6 @@ import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
-import org.apache.hadoop.ozone.container.common.utils.ContainerCache;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 
@@ -40,72 +39,6 @@ public final class BlockUtils {
   /** Never constructed. **/
   private BlockUtils() {
 
-  }
-  /**
-   * Get a DB handler for a given container.
-   * If the handler doesn't exist in cache yet, first create one and
-   * add into cache. This function is called with containerManager
-   * ReadLock held.
-   *
-   * @param containerData containerData.
-   * @param conf configuration.
-   * @return MetadataStore handle.
-   * @throws StorageContainerException
-   */
-  public static ReferenceCountedDB getDB(KeyValueContainerData containerData,
-                                    ConfigurationSource conf) throws
-      StorageContainerException {
-    Preconditions.checkNotNull(containerData);
-    ContainerCache cache = ContainerCache.getInstance(conf);
-    Preconditions.checkNotNull(cache);
-    Preconditions.checkNotNull(containerData.getDbFile());
-    try {
-      return cache.getDB(containerData.getContainerID(), containerData
-          .getContainerDBType(), containerData.getDbFile().getAbsolutePath(),
-          conf);
-    } catch (IOException ex) {
-      String message = String.format("Error opening DB. Container:%s " +
-          "ContainerPath:%s", containerData.getContainerID(), containerData
-          .getDbFile().getPath());
-      throw new StorageContainerException(message, UNABLE_TO_READ_METADATA_DB);
-    }
-  }
-  /**
-   * Remove a DB handler from cache.
-   *
-   * @param container - Container data.
-   * @param conf - Configuration.
-   */
-  public static void removeDB(KeyValueContainerData container,
-      ConfigurationSource conf) {
-    Preconditions.checkNotNull(container);
-    ContainerCache cache = ContainerCache.getInstance(conf);
-    Preconditions.checkNotNull(cache);
-    cache.removeDB(
-        container.getDbFile().getAbsolutePath());
-  }
-
-  /**
-   * Shutdown all DB Handles.
-   *
-   * @param cache - Cache for DB Handles.
-   */
-  public static void shutdownCache(ContainerCache cache)  {
-    cache.shutdownCache();
-  }
-
-  /**
-   * Add a DB handler into cache.
-   *
-   * @param db - DB handler.
-   * @param containerDBPath - DB path of the container.
-   * @param conf configuration.
-   */
-  public static void addDB(ReferenceCountedDB db, String containerDBPath,
-      ConfigurationSource conf) {
-    ContainerCache cache = ContainerCache.getInstance(conf);
-    Preconditions.checkNotNull(cache);
-    cache.addDB(containerDBPath, db);
   }
 
   /**

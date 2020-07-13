@@ -100,13 +100,4 @@ public final class KeyValueContainerLocationUtil {
     int directory = (int) ((containerId >> 9) & 0xFF);
     return Storage.CONTAINER_DIR + directory;
   }
-
-  /**
-   * Return containerDB File.
-   */
-  public static File getContainerDBFile(File containerMetaDataPath,
-      long containerID) {
-    return new File(containerMetaDataPath, containerID + OzoneConsts
-        .DN_CONTAINER_DB);
-  }
 }

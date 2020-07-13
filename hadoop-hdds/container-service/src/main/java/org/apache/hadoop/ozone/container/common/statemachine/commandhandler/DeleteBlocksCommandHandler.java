@@ -35,6 +35,7 @@ import org.apache.hadoop.ozone.container.common.helpers
     .DeletedContainerBlocksSummary;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
@@ -208,7 +209,7 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
     String category = containerData.getCategoryInDB();
     int newDeletionBlocks = 0;
     try(ReferenceCountedDB containerDB =
-            BlockUtils.getDB(containerData, conf)) {
+            DBManager.getDB(containerData.getDbPath())) {
       for (Long blk : delTX.getLocalIDList()) {
         BatchOperation batch = new BatchOperation();
         byte[] blkBytes = DBKey.getBlockKey(containerId, blk);

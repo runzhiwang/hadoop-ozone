@@ -182,7 +182,7 @@ import static org.junit.Assert.assertFalse;
             containerID);
 
     try (ReferenceCountedDB ignored =
-            BlockUtils.getDB(containerData, conf);
+            DBManager.getDB(containerData.getDbPath());
         KeyValueBlockIterator kvIter = new KeyValueBlockIterator(containerID,
             new File(containerData.getContainerPath()))) {
       BlockData block = kvIter.nextBlock();
@@ -244,8 +244,7 @@ import static org.junit.Assert.assertFalse;
         new RoundRobinVolumeChoosingPolicy(),
         scmId);
     String category = containerData.getCategoryInDB();
-    try (ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
-        conf)) {
+    try (ReferenceCountedDB metadataStore = DBManager.getDB(containerData.getDbPath())) {
       assertNotNull(containerData.getChunksPath());
       File chunksPath = new File(containerData.getChunksPath());
       chunkManagerTestInfo.validateFileCount(chunksPath, 0, 0);

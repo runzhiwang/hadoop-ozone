@@ -92,15 +92,38 @@ public final class KeyValueContainerUtil {
           " Path: " + chunksPath);
     }
 
-    MetadataStore store = MetadataStoreBuilder.newBuilder().setConf(conf)
-        .setCreateIfMissing(true).setDbFile(dbFile).build();
-    ReferenceCountedDB db =
-        new ReferenceCountedDB(store, dbFile.getAbsolutePath());
-    //add db handler into cache
-    BlockUtils.addDB(db, dbFile.getAbsolutePath(), conf);
-
     DBCategory dbCategory = dbManager.allocateDB(hddsVolumeDir);
     return dbCategory;
+  }
+
+  private static void removeFromDB(ReferenceCountedDB db,
+      String category, long containerID) {
+    try {
+      if (db == null || db.getStore() == null) {
+        LOG.error("DB not exists. Container:{}", containerID);
+        return;
+      }
+
+
+      db.getStore().deleteRange(category,
+          DBKey.getDeletingBeginKey(containerID),
+          DBKey.getDeletingEndKey(containerID));
+
+      db.getStore().deleteRange(category,
+          DBKey.getDeletedBeginKey(containerID),
+          DBKey.getDeletedEndKey(containerID));
+
+      db.getStore().delete(category,DBKey.getDelTxDBKey(containerID));
+      db.getStore().delete(category, DBKey.getBcsIdDBKey(containerID));
+      db.getStore().delete(category, DBKey.getBlockCountDBKey(containerID));
+      db.getStore().delete(category, DBKey.getByteUsedDBKey(containerID));
+      db.getStore().delete(category,
+          DBKey.getPendingDeleteCountDBKey(containerID));
+
+    } catch (IOException e) {
+      LOG.error("Error remove container from DB. Container:{} ContainerPath:{}",
+          containerID, db.getContainerDBPath(), e);
+    }
   }
 
   /**
@@ -123,8 +146,9 @@ public final class KeyValueContainerUtil {
         .getMetadataPath());
     File chunksPath = new File(containerData.getChunksPath());
 
-    // Close the DB connection and remove the DB handler from cache
-    BlockUtils.removeDB(containerData, conf);
+    ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath());
+
+    removeFromDB(db, containerData.getCategoryInDB(), containerData.getContainerID());
 
     // Delete the Container MetaData path.
     FileUtils.deleteDirectory(containerMetaDataPath);
@@ -148,13 +172,11 @@ public final class KeyValueContainerUtil {
       ConfigurationSource config) throws IOException {
 
     long containerID = kvContainerData.getContainerID();
-    File metadataPath = new File(kvContainerData.getMetadataPath());
 
     // Verify Checksum
     ContainerUtils.verifyChecksum(kvContainerData);
 
-    File dbFile = KeyValueContainerLocationUtil.getContainerDBFile(
-        metadataPath, containerID);
+    File dbFile = kvContainerData.getDbFile();
     if (!dbFile.exists()) {
       LOG.error("Container DB file is missing for ContainerID {}. " +
           "Skipping loading of this container.", containerID);
@@ -165,8 +187,7 @@ public final class KeyValueContainerUtil {
     String category = kvContainerData.getCategoryInDB();
     boolean isBlockMetadataSet = false;
 
-    try(ReferenceCountedDB containerDB = BlockUtils.getDB(kvContainerData,
-        config)) {
+    try(ReferenceCountedDB containerDB = DBManager.getDB(kvContainerData.getDbPath())) {
 
       // Set pending deleted block count.
       byte[] pendingDeleteCountKey =

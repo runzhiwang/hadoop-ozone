@@ -44,6 +44,7 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.ContainerStateMachine;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -604,8 +605,8 @@ public class TestContainerStateMachineFailures {
         .getContainer(omKeyLocationInfo.getContainerID()).getContainerData();
     Assert.assertTrue(containerData instanceof KeyValueContainerData);
     keyValueContainerData = (KeyValueContainerData) containerData;
-    ReferenceCountedDB db = BlockUtils.
-        getDB(keyValueContainerData, conf);
+    ReferenceCountedDB db = DBManager.
+        getDB(keyValueContainerData.getDbPath());
     byte[] blockCommitSequenceIdKey = DBKey.getBcsIdDBKey(containerID);
     // modify the bcsid for the container in the ROCKS DB thereby inducing
     // corruption

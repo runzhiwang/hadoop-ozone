@@ -220,7 +220,7 @@ public class TestContainerPersistence {
 
     ReferenceCountedDB store = null;
     try {
-      store = BlockUtils.getDB(kvData, conf);
+      store = DBManager.getDB(kvData.getDbPath());
       Assert.assertNotNull(store);
     } finally {
       if (store != null) {
@@ -264,8 +264,10 @@ public class TestContainerPersistence {
         .containsKey(testContainerID1));
 
     // Adding block to a deleted container should fail.
-    exception.expect(StorageContainerException.class);
-    exception.expectMessage("Error opening DB.");
+    exception.expect(IOException.class);
+    exception.expectMessage("Container:" +
+        container1.getContainerData().getContainerID() +
+        " does not exist");
     BlockID blockID1 = ContainerTestHelper.getTestBlockID(testContainerID1);
     BlockData someKey1 = new BlockData(blockID1);
     someKey1.setChunks(new LinkedList<ContainerProtos.ChunkInfo>());
