@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.container.keyvalue;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,9 +99,10 @@ public class TestKeyValueBlockIterator {
 
 
   @After
-  public void tearDown() {
+  public void tearDown() throws IOException {
     volumeSet.shutdown();
     FileUtil.fullyDelete(testRoot);
+    dbManager.clean();
   }
 
   @Test
@@ -186,10 +188,6 @@ public class TestKeyValueBlockIterator {
       assertTrue(keyValueBlockIterator.hasNext());
       assertEquals(blockID, keyValueBlockIterator.nextBlock().getLocalID());
 
-      keyValueBlockIterator.seekToLast();
-      assertTrue(keyValueBlockIterator.hasNext());
-      assertEquals(blockID, keyValueBlockIterator.nextBlock().getLocalID());
-
       keyValueBlockIterator.seekToFirst();
       blockID = 0L;
       assertEquals(blockID++, keyValueBlockIterator.nextBlock().getLocalID());
@@ -263,8 +261,7 @@ public class TestKeyValueBlockIterator {
         new RoundRobinVolumeChoosingPolicy(),
         scmID);
     String category = containerData.getCategoryInDB();
-    try(ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
-        conf)) {
+    try(ReferenceCountedDB metadataStore = DBManager.getDB(containerData.getDbPath())) {
 
       List<ContainerProtos.ChunkInfo> chunkList = new ArrayList<>();
       ChunkInfo info = new ChunkInfo("chunkfile", 0, 1024);

@@ -29,6 +29,7 @@ import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters.KeyPrefixFilter;
 import org.apache.hadoop.ozone.client.OzoneBucket;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -156,7 +157,7 @@ public class TestStorageContainerManagerHelper {
     KeyValueContainerData containerData =
         (KeyValueContainerData) containerServer.getContainerSet()
         .getContainer(containerID).getContainerData();
-    return BlockUtils.getDB(containerData, conf);
+    return DBManager.getDB(containerData.getDbPath());
   }
 
   private KeyValueContainerData getContainerData(Long containerID)

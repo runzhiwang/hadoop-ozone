@@ -18,13 +18,17 @@
 
 package org.apache.hadoop.ozone.container.ozoneimpl;
 
+import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.Set;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -46,6 +50,7 @@ import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerGrpc;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerSpi;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.statemachine.background.BlockDeletingService;
@@ -82,6 +87,7 @@ public class OzoneContainer {
   private ContainerMetadataScanner metadataScanner;
   private List<ContainerDataScanner> dataScanners;
   private final BlockDeletingService blockDeletingService;
+  private DBManager dbManager;
 
   /**
    * Construct OzoneContainer object.
@@ -99,7 +105,7 @@ public class OzoneContainer {
     volumeSet.setFailedVolumeListener(this::handleVolumeFailures);
     containerSet = new ContainerSet();
     metadataScanner = null;
-
+    buildDBManager();
     buildContainerSet();
     final ContainerMetrics metrics = ContainerMetrics.create(conf);
     handlers = Maps.newHashMap();
@@ -115,10 +121,10 @@ public class OzoneContainer {
 
     for (ContainerType containerType : ContainerType.values()) {
       handlers.put(containerType,
-          Handler.getHandlerForContainerType(
+          Handler.getHandlerForContainerTypeWithDBManager(
               containerType, conf,
               context.getParent().getDatanodeDetails().getUuidString(),
-              containerSet, volumeSet, metrics, icrSender));
+              containerSet, volumeSet, metrics, icrSender, dbManager));
     }
 
     SecurityConfig secConf = new SecurityConfig(conf);
@@ -149,6 +155,40 @@ public class OzoneContainer {
     blockDeletingService =
         new BlockDeletingService(this, svcInterval, serviceTimeout,
             TimeUnit.MILLISECONDS, config);
+  }
+
+  private void buildDBManager() throws IOException {
+    String scmId = getScmID();
+    dbManager = new DBManager(scmId, config);
+  }
+
+  private String getScmID() throws IOException {
+    Iterator<HddsVolume> volumeSetIterator = volumeSet.getVolumesList()
+        .iterator();
+
+    Set<String> scmIDs = new HashSet<>();
+    while (volumeSetIterator.hasNext()) {
+      HddsVolume volume = volumeSetIterator.next();
+      File hddsVolumeDir = volume.getHddsRootDir();
+      File[] scmDirs = hddsVolumeDir.listFiles(new FileFilter() {
+        @Override
+        public boolean accept(File pathname) {
+          return pathname.isDirectory();
+        }
+      });
+
+      if (scmDirs != null) {
+        for (File scmDir : scmDirs) {
+          scmIDs.add(scmDir.getName());
+        }
+      }
+    }
+
+    if (scmIDs.size() > 1) {
+      throw new IOException("Not support multiple scm");
+    }
+
+    return scmIDs.size() > 0 ? scmIDs.iterator().next() : null;
   }
 
   private GrpcReplicationService createReplicationService() {

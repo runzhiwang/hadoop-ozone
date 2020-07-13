@@ -70,6 +70,7 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_CONTA
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
 
+import org.iq80.leveldb.DB;
 import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -157,7 +158,7 @@ public class TestBlockDeletingService {
           containerID).getContainerData();
 
       long blockLength = 100;
-      try(ReferenceCountedDB metadata = BlockUtils.getDB(data, conf)) {
+      try(ReferenceCountedDB metadata = DBManager.getDB(data.getDbPath())) {
         for (int j = 0; j < numOfBlocksPerContainer; j++) {
           BlockID blockID =
               ContainerTestHelper.getTestBlockID(containerID);
@@ -270,8 +271,8 @@ public class TestBlockDeletingService {
     KeyValueContainerData containerData =
         (KeyValueContainerData) containerDatas.get(0);
     String category = containerData.getCategoryInDB();
-    try(ReferenceCountedDB meta = BlockUtils.getDB(
-        containerData, conf)) {
+    try(ReferenceCountedDB meta = DBManager.getDB(
+        containerData.getDbPath())) {
       long containerID = containerData.getContainerID();
       Map<Long, Container<?>> containerMap = containerSet.getContainerMapCopy();
       // NOTE: this test assumes that all the container is KetValueContainer and
@@ -393,7 +394,7 @@ public class TestBlockDeletingService {
     KeyValueContainer container =
         (KeyValueContainer) containerSet.getContainerIterator().next();
     KeyValueContainerData data = container.getContainerData();
-    try (ReferenceCountedDB meta = BlockUtils.getDB(data, conf)) {
+    try (ReferenceCountedDB meta = DBManager.getDB(data.getDbPath())) {
 
       LogCapturer newLog = LogCapturer.captureLogs(BackgroundService.LOG);
       GenericTestUtils.waitFor(() -> {

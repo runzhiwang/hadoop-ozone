@@ -44,6 +44,7 @@ import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine.DatanodeStates;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 
 import com.google.common.collect.Maps;
@@ -83,6 +84,7 @@ public class BenchMarkDatanodeDispatcher {
   private List<Long> keys;
   private List<String> chunks;
   private MutableVolumeSet volumeSet;
+  private DBManager dbManager;
 
   @Setup(Level.Trial)
   public void initialize() throws IOException {
@@ -103,17 +105,19 @@ public class BenchMarkDatanodeDispatcher {
 
     ContainerSet containerSet = new ContainerSet();
     volumeSet = new MutableVolumeSet(datanodeUuid, conf);
+    String scmID = "scm";
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, conf);
     StateContext context = new StateContext(
         conf, DatanodeStates.RUNNING, null);
     ContainerMetrics metrics = ContainerMetrics.create(conf);
     Map<ContainerProtos.ContainerType, Handler> handlers = Maps.newHashMap();
     for (ContainerProtos.ContainerType containerType :
         ContainerProtos.ContainerType.values()) {
-      Handler handler = Handler.getHandlerForContainerType(
+      Handler handler = Handler.getHandlerForContainerTypeWithDBManager(
           containerType, conf, "datanodeid",
           containerSet, volumeSet, metrics,
-          c -> {});
-      handler.setScmID("scm");
+          c -> {}, dbManager);
+      handler.setScmID(scmID);
       handlers.put(containerType, handler);
     }
     dispatcher = new HddsDispatcher(conf, containerSet, volumeSet, handlers,
@@ -163,6 +167,9 @@ public class BenchMarkDatanodeDispatcher {
 
   @TearDown(Level.Trial)
   public void cleanup() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     volumeSet.shutdown();
     FileUtils.deleteDirectory(new File(baseDir));
   }

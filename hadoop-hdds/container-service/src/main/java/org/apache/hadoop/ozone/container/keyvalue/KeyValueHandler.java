@@ -118,13 +118,6 @@ public class KeyValueHandler extends Handler {
 
   public KeyValueHandler(ConfigurationSource config, String datanodeId,
       ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender)
-      throws IOException {
-    this(config, datanodeId, contSet, volSet, metrics, icrSender, null);
-  }
-
-  public KeyValueHandler(ConfigurationSource config, String datanodeId,
-      ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
       Consumer<ContainerReplicaProto> icrSender, DBManager dbManager)
       throws IOException {
     super(config, datanodeId, contSet, volSet, metrics, icrSender);
@@ -152,8 +145,8 @@ public class KeyValueHandler extends Handler {
 
   @Override
   public void initDBManager(String scmID) throws IOException {
-    if (dbManager == null) {
-      dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, conf);
+    if (dbManager != null && dbManager.getScmID() == null) {
+      dbManager.initDBManager(scmID);
     }
   }
 

@@ -27,6 +27,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
 import org.apache.hadoop.ozone.container.common.interfaces.BlockIterator;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
 import org.apache.hadoop.hdds.utils.MetaStoreIterator;
@@ -91,10 +92,9 @@ public class KeyValueBlockIterator implements BlockIterator<BlockData>,
         containerFile);
     KeyValueContainerData keyValueContainerData = (KeyValueContainerData)
         containerData;
-    db = BlockUtils.getDB(keyValueContainerData, new
-        OzoneConfiguration());
+    db = DBManager.getDB(keyValueContainerData.getDbPath());
     String category =
-        ((KeyValueContainerData) containerData).getCategoryInDB();
+        keyValueContainerData.getCategoryInDB();
     blockIterator = db.getStore().iterator(category);
     blockFilter = filter;
   }

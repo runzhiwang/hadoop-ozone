@@ -48,6 +48,7 @@ import org.apache.hadoop.ozone.container.common.transport.server.ratis.
         ContainerStateMachine;
 
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.ozoneimpl.OzoneContainer;

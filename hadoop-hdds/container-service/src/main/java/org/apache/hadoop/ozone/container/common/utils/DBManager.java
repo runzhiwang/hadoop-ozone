@@ -51,7 +51,7 @@ public class DBManager {
       volumeDBMap = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, RocksDBCount>
       volumeDBCountMap = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<String, ReferenceCountedDB>
+  private static ConcurrentHashMap<String, ReferenceCountedDB>
       pathDBMap = new ConcurrentHashMap<>();
   private int maxCategoryInDB;
   private int maxContainersInDB;
@@ -62,21 +62,39 @@ public class DBManager {
 
   public DBManager(List<String> volumes, String scmID, ConfigurationSource conf)
       throws IOException {
-    initDBManager(volumes, scmID, conf);
+    this.scmID = scmID;
+    this.conf = conf;
+    if (scmID != null) {
+      initDBManager(volumes);
+    }
   }
 
   public DBManager(String scmID, ConfigurationSource conf) throws IOException {
+    this.scmID = scmID;
+    this.conf = conf;
+    if (scmID != null) {
+      initDBManager();
+    }
+  }
+
+  public void initDBManager(String scmID) throws IOException {
+    this.scmID = scmID;
+    if (scmID != null) {
+      initDBManager();
+    }
+  }
+
+  private void initDBManager() throws IOException {
     Collection<String> rawLocations = getDatanodeStorageDirs(conf);
     List<String> volumes = new ArrayList<>();
     for (String location : rawLocations) {
       volumes.add(location + File.separator + HddsVolume.HDDS_VOLUME_DIR);
     }
-    initDBManager(volumes, scmID, conf);
+    initDBManager(volumes);
   }
 
-  private void initDBManager(List<String> volumes, String scmID, ConfigurationSource conf)
+  private void initDBManager(List<String> volumes)
       throws IOException {
-    this.scmID = scmID;
 
     for (String volume : volumes) {
       File rootDir = new File(getRocksDBRootDir(volume));
@@ -102,10 +120,13 @@ public class DBManager {
         HddsConfigKeys.HDDS_DATANODE_ROCKSDB_COLUMNFAMILY_LIMIT_DEFAULT);
     this.maxContainerInCategory = maxContainersInDB / maxCategoryInDB;
     this.categories = getCategories();
-    this.conf = conf;
 
     initDBDir(volumes);
     reloadDB(volumes);
+  }
+
+  public String getScmID() {
+    return scmID;
   }
 
   private String getRocksDBRootDir(String volume) {
@@ -198,18 +219,20 @@ public class DBManager {
     return new DBCategory(db.getContainerDBPath(), category);
   }
 
-  public ReferenceCountedDB getDB(String dbPath) throws IOException {
+  public static ReferenceCountedDB getDB(String dbPath) throws IOException {
     if (!pathDBMap.containsKey(dbPath)) {
       throw new IOException("RocksDB:" + dbPath + " does not exist");
     }
 
-    return pathDBMap.get(dbPath);
+    ReferenceCountedDB db = pathDBMap.get(dbPath);
+    db.incrementReference();
+    return db;
   }
 
   private ReferenceCountedDB createDB(String volumePath) throws IOException {
     RocksDBCount dbCount = volumeDBCountMap.get(volumePath);
     int count = dbCount.getRocksDBCount();
-    String dbFileName = getRocksDBDir(volumePath, count + 1);
+    String dbFileName = getRocksDBDir(volumePath, count);
     File dbFile = new File(dbFileName);
     MetadataStore store = MetadataStoreBuilder.newBuilder().setConf(conf)
         .setCreateIfMissing(true).setDbFile(dbFile).build();
@@ -236,6 +259,7 @@ public class DBManager {
       List<ReferenceCountedDB> dbs = volumeDBMap.get(volume);
       for (ReferenceCountedDB db : dbs) {
         db.getStore().close();
+        pathDBMap.remove(db.getContainerDBPath());
       }
     }
   }

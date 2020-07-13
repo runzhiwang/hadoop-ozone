@@ -33,6 +33,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.ChunkUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
@@ -217,9 +218,7 @@ public class KeyValueContainerCheck {
     Preconditions.checkState(onDiskContainerData != null,
         "invoke loadContainerData prior to calling this function");
 
-    File metaDir = new File(metadataPath);
-    File dbFile = KeyValueContainerLocationUtil
-        .getContainerDBFile(metaDir, containerID);
+    File dbFile = onDiskContainerData.getDbFile();
 
     if (!dbFile.exists() || !dbFile.canRead()) {
       String dbFileErrorMsg = "Unable to access DB File [" + dbFile.toString()
@@ -228,14 +227,11 @@ public class KeyValueContainerCheck {
       throw new IOException(dbFileErrorMsg);
     }
 
-    onDiskContainerData.setDbPath(dbFile.getAbsolutePath());
-    onDiskContainerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
-
     String category = onDiskContainerData.getCategoryInDB();
     ChunkLayOutVersion layout = onDiskContainerData.getLayOutVersion();
 
     try(ReferenceCountedDB db =
-            BlockUtils.getDB(onDiskContainerData, checkConfig);
+            DBManager.getDB(onDiskContainerData.getDbPath());
         KeyValueBlockIterator kvIter = new KeyValueBlockIterator(containerID,
             new File(onDiskContainerData.getContainerPath()))) {
 

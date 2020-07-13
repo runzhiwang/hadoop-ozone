@@ -137,7 +137,8 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       containerData.setChunksPath(chunksPath.getPath());
 
       containerData.setContainerDBType(impl);
-      containerData.setDbPath(dbFile.getAbsolutePath());
+      containerData.setDbPath(dbCategory.getDbPath());
+      //containerData.setDbPath(dbFile.getAbsolutePath());
       containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
       containerData.setVolume(containerVolume);
 
@@ -189,14 +190,10 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
     File chunksPath = KeyValueContainerLocationUtil.getChunksLocationPath(
         hddsVolumeDir, scmId, containerId);
-    File dbFile = KeyValueContainerLocationUtil.getContainerDBFile(
-        containerMetaDataPath, containerId);
 
     //Set containerData for the KeyValueContainer.
     containerData.setMetadataPath(containerMetaDataPath.getPath());
     containerData.setChunksPath(chunksPath.getPath());
-    containerData.setDbPath(dbFile.getAbsolutePath());
-    containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
     containerData.setVolume(containerVolume);
   }
 
@@ -373,7 +370,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
   private void compactDB() throws StorageContainerException {
     try {
-      try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
+      try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
         String category = getContainerData().getCategoryInDB();
         db.getStore().compactRange(category);
       }
@@ -387,7 +384,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
   private void flushAndSyncDB() throws StorageContainerException {
     try {
-      try (ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
+      try (ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
         db.getStore().flushDB(true);
         LOG.info("Container {} is synced with bcsId {}.",
             containerData.getContainerID(),
@@ -692,8 +689,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
    * @return
    */
   public File getContainerDBFile() {
-    return new File(containerData.getMetadataPath(), containerData
-        .getContainerID() + OzoneConsts.DN_CONTAINER_DB);
+    return new File(containerData.getContainerPath());
   }
 
   public boolean scanMetaData() {

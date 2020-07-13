@@ -49,6 +49,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.ContainerDeletionChoo
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -255,7 +256,7 @@ public class BlockDeletingService extends BackgroundService {
       long startTime = Time.monotonicNow();
       String category = containerData.getCategoryInDB();
       // Scan container's db and get list of under deletion blocks
-      try (ReferenceCountedDB meta = BlockUtils.getDB(containerData, conf)) {
+      try (ReferenceCountedDB meta = DBManager.getDB(containerData.getDbPath())) {
         // # of blocks to delete is throttled
         byte[] prefixKey =
             DBKey.getDeletingKey(containerData.getContainerID());

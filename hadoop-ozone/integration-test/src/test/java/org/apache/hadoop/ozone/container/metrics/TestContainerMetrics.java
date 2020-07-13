@@ -48,6 +48,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerGrpc;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -87,6 +88,7 @@ public class TestContainerMetrics {
   public void testContainerMetrics() throws Exception {
     XceiverServerGrpc server = null;
     XceiverClientGrpc client = null;
+    DBManager dbManager = null;
     long containerID = ContainerTestHelper.getTestContainerID();
     String path = GenericTestUtils.getRandomizedTempPath();
 
@@ -105,6 +107,8 @@ public class TestContainerMetrics {
       conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_KEY, path);
       VolumeSet volumeSet = new MutableVolumeSet(
           datanodeDetails.getUuidString(), conf);
+      String scmID = UUID.randomUUID().toString();
+      dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, conf);
       ContainerSet containerSet = new ContainerSet();
       DatanodeStateMachine stateMachine = Mockito.mock(
           DatanodeStateMachine.class);
@@ -117,14 +121,14 @@ public class TestContainerMetrics {
       for (ContainerProtos.ContainerType containerType :
           ContainerProtos.ContainerType.values()) {
         handlers.put(containerType,
-            Handler.getHandlerForContainerType(containerType, conf,
+            Handler.getHandlerForContainerTypeWithDBManager(containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
                 containerSet, volumeSet, metrics,
-                TestHddsDispatcher.NO_OP_ICR_SENDER));
+                TestHddsDispatcher.NO_OP_ICR_SENDER, dbManager));
       }
       HddsDispatcher dispatcher = new HddsDispatcher(conf, containerSet,
           volumeSet, handlers, context, metrics, null);
-      dispatcher.setScmId(UUID.randomUUID().toString());
+      dispatcher.setScmId(scmID);
 
       server = new XceiverServerGrpc(datanodeDetails, conf, dispatcher, null,
           createReplicationService(new ContainerController(
@@ -177,6 +181,9 @@ public class TestContainerMetrics {
       }
       if (server != null) {
         server.stop();
+      }
+      if (dbManager != null) {
+        dbManager.clean();
       }
       // clean up volume dir
       File file = new File(path);

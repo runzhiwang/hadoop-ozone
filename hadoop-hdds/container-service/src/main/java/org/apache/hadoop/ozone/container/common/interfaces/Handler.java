@@ -66,22 +66,6 @@ public abstract class Handler {
     this.icrSender = icrSender;
   }
 
-  public static Handler getHandlerForContainerType(
-      final ContainerType containerType, final ConfigurationSource config,
-      final String datanodeId, final ContainerSet contSet,
-      final VolumeSet volumeSet, final ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender) throws IOException {
-    switch (containerType) {
-    case KeyValueContainer:
-      return new KeyValueHandler(config,
-          datanodeId, contSet, volumeSet, metrics,
-          icrSender);
-    default:
-      throw new IllegalArgumentException("Handler for ContainerType: " +
-          containerType + "doesn't exist.");
-    }
-  }
-
   public static Handler getHandlerForContainerTypeWithDBManager(
       final ContainerType containerType, final ConfigurationSource config,
       final String datanodeId, final ContainerSet contSet,

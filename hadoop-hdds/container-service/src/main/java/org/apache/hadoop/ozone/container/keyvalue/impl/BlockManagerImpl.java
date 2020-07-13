@@ -28,11 +28,11 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerExcep
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.keyvalue.interfaces.BlockManager;
-import org.apache.hadoop.ozone.container.common.utils.ContainerCache;
 import org.apache.hadoop.hdds.utils.BatchOperation;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
@@ -40,6 +40,7 @@ import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,10 +88,20 @@ public class BlockManagerImpl implements BlockManager {
         "operation.");
     Preconditions.checkState(data.getContainerID() >= 0, "Container Id " +
         "cannot be negative");
+    KeyValueContainerData containerData =
+        (KeyValueContainerData) container.getContainerData();
+    // check container meta exist
+    File containerFile = new File(containerData.getContainerPath());
+    if (!containerFile.exists()) {
+      String msg = "Container:" + containerData.getContainerID() +
+          " does not exist";
+      LOG.error(msg);
+      throw new IOException(msg);
+    }
+
     // We are not locking the key manager since LevelDb serializes all actions
     // against a single DB. We rely on DB level locking to avoid conflicts.
-    try(ReferenceCountedDB db = BlockUtils.
-        getDB((KeyValueContainerData) container.getContainerData(), config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -178,7 +189,7 @@ public class BlockManagerImpl implements BlockManager {
 
     KeyValueContainerData containerData = (KeyValueContainerData) container
         .getContainerData();
-    try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -216,7 +227,7 @@ public class BlockManagerImpl implements BlockManager {
       throws IOException {
     KeyValueContainerData containerData = (KeyValueContainerData) container
         .getContainerData();
-    try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -245,7 +256,7 @@ public class BlockManagerImpl implements BlockManager {
     KeyValueContainerData cData = (KeyValueContainerData) container
         .getContainerData();
     String category = cData.getCategoryInDB();
-    try(ReferenceCountedDB db = BlockUtils.getDB(cData, config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(cData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -296,7 +307,7 @@ public class BlockManagerImpl implements BlockManager {
       List<BlockData> result = null;
       KeyValueContainerData cData =
           (KeyValueContainerData) container.getContainerData();
-      try (ReferenceCountedDB db = BlockUtils.getDB(cData, config)) {
+      try (ReferenceCountedDB db = DBManager.getDB(cData.getDbPath())) {
         result = new ArrayList<>();
         byte[] startKeyInBytes = DBKey.getBlockKey(
             cData.getContainerID(), startLocalID);
@@ -321,7 +332,6 @@ public class BlockManagerImpl implements BlockManager {
    * Shutdown KeyValueContainerManager.
    */
   public void shutdown() {
-    BlockUtils.shutdownCache(ContainerCache.getInstance(config));
   }
 
   private byte[] getBlockByID(ReferenceCountedDB db, String category, BlockID blockID)

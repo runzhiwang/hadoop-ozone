@@ -34,6 +34,7 @@ import org.apache.hadoop.ozone.client.OzoneClientFactory;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
@@ -249,8 +250,8 @@ public class TestCloseContainerByPipeline {
       Container dnContainer = cluster.getHddsDatanodes().get(index)
           .getDatanodeStateMachine().getContainer().getContainerSet()
           .getContainer(containerID);
-      try(ReferenceCountedDB store = BlockUtils.getDB(
-          (KeyValueContainerData) dnContainer.getContainerData(), conf)) {
+      try(ReferenceCountedDB store = DBManager.getDB(
+          ((KeyValueContainerData) dnContainer.getContainerData()).getDbPath())) {
         metadataStores.add(store);
       }
     }
