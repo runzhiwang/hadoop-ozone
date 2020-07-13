@@ -231,6 +231,7 @@ public class KeyValueContainerCheck {
     onDiskContainerData.setDbPath(dbFile.getAbsolutePath());
     onDiskContainerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
 
+    String category = onDiskContainerData.getCategoryInDB();
     ChunkLayOutVersion layout = onDiskContainerData.getLayOutVersion();
 
     try(ReferenceCountedDB db =
@@ -249,7 +250,7 @@ public class KeyValueContainerCheck {
             byte[] key = DBKey.getBlockKey(
                 containerID, block.getBlockID().getLocalID());
             byte[] bdata = db.getStore().get(
-                RocksDB.DEFAULT_COLUMN_FAMILY,
+                category,
                 key);
             if (bdata != null) {
               throw new IOException("Missing chunk file "

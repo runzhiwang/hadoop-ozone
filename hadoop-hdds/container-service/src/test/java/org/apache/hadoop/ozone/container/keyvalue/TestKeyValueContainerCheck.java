@@ -243,6 +243,7 @@ import static org.junit.Assert.assertFalse;
     container.create(dbManager, volumeSet,
         new RoundRobinVolumeChoosingPolicy(),
         scmId);
+    String category = containerData.getCategoryInDB();
     try (ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
         conf)) {
       assertNotNull(containerData.getChunksPath());
@@ -273,7 +274,7 @@ import static org.junit.Assert.assertFalse;
           byte[] deletingKey = DBKey.getDeletingKey(blockID.getContainerID(),
               blockID.getLocalID());
           metadataStore.getStore().put(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              category,
               deletingKey,
               blockData.getProtoBufMessage().toByteArray());
         } else {
@@ -281,7 +282,7 @@ import static org.junit.Assert.assertFalse;
           byte[] blockKey =
               DBKey.getBlockKey(containerId, blockID.getLocalID());
           metadataStore.getStore().put(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              category,
               blockKey,
               blockData.getProtoBufMessage().toByteArray());
         }

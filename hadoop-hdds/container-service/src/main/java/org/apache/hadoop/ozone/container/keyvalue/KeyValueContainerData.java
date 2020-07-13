@@ -286,18 +286,18 @@ public class KeyValueContainerData extends ContainerData {
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
     byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
-    batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+    batchOperation.put(getCategoryInDB(),
         containerBytesUsedKey,
         Longs.toByteArray(getBytesUsed()));
 
     byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
-    batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+    batchOperation.put(getCategoryInDB(),
         blockCountKey,
         Longs.toByteArray(getKeyCount() - deletedBlockCount));
 
     byte[] pendingDeleteCountKey =
         DBKey.getPendingDeleteCountDBKey(containerID);
-    batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+    batchOperation.put(getCategoryInDB(),
         pendingDeleteCountKey,
         Longs.toByteArray(getNumPendingDeletionBlocks() - deletedBlockCount));
     db.getStore().writeBatch(batchOperation);

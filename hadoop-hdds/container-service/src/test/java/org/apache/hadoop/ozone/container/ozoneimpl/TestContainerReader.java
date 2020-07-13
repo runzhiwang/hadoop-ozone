@@ -125,6 +125,7 @@ public class TestContainerReader {
 
   private void markBlocksForDelete(KeyValueContainer keyValueContainer,
       boolean setMetaData, List<Long> blockNames, int count) throws Exception {
+    String category = keyValueContainer.getContainerData().getCategoryInDB();
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
         .getContainerData(), conf)) {
       long containerID = keyValueContainer.getContainerData()
@@ -133,41 +134,41 @@ public class TestContainerReader {
       for (int i = 0; i < count; i++) {
         byte[] blkBytes = DBKey.getBlockKey(containerID, blockNames.get(i));
         byte[] blkInfo = metadataStore.getStore().get(
-            RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
+            category, blkBytes);
 
         byte[] deletingKeyBytes =
             DBKey.getDeletingKey(containerID, blockNames.get(i));
 
         metadataStore.getStore().delete(
-            RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
+            category, blkBytes);
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes, blkInfo);
+            category, deletingKeyBytes, blkInfo);
       }
 
       if (setMetaData) {
         byte[] pendingDeleteCountKey =
             DBKey.getPendingDeleteCountDBKey(containerID);
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             pendingDeleteCountKey,
             Longs.toByteArray(count));
 
         byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
         long blkCount = Longs.fromByteArray(
             metadataStore.getStore().get(
-                RocksDB.DEFAULT_COLUMN_FAMILY,
+                category,
                 blockCountKey));
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             blockCountKey,
             Longs.toByteArray(blkCount - count));
         byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
         long bytesUsed = Longs.fromByteArray(
             metadataStore.getStore().get(
-                RocksDB.DEFAULT_COLUMN_FAMILY,
+                category,
                 containerBytesUsedKey));
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             containerBytesUsedKey,
             Longs.toByteArray(bytesUsed - (count * blockLen)));
 
@@ -184,6 +185,8 @@ public class TestContainerReader {
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
         .getContainerData(), conf)) {
 
+      String category = keyValueContainer.getContainerData()
+          .getCategoryInDB();
       for (int i = 0; i < blockCount; i++) {
         // Creating BlockData
         BlockID blockID = new BlockID(containerId, i);
@@ -199,7 +202,7 @@ public class TestContainerReader {
         blkNames.add(blockID.getLocalID());
         byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             blockKey,
             blockData.getProtoBufMessage().toByteArray());
       }
@@ -207,12 +210,12 @@ public class TestContainerReader {
       if (setMetaData) {
         byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             blockCountKey,
             Longs.toByteArray(blockCount));
         byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerId);
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             containerBytesUsedKey,
             Longs.toByteArray(blockCount * blockLen));
       }

@@ -322,13 +322,14 @@ public class TestBlockDeletion {
         cluster.getHddsDatanodes().get(0).getDatanodeStateMachine()
             .getContainer().getContainerSet();
     OzoneTestUtils.performOperationOnKeyContainers((blockID) -> {
+      KeyValueContainerData containerData = (KeyValueContainerData) dnContainerSet
+          .getContainer(blockID.getContainerID()).getContainerData();
       try(ReferenceCountedDB db =
-          BlockUtils.getDB((KeyValueContainerData) dnContainerSet
-          .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
+          BlockUtils.getDB(containerData, conf)) {
         byte[] key = DBKey.getBlockKey(
             blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNotNull(db.getStore().get(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            containerData.getCategoryInDB(),
             key));
       }
     }, omKeyLocationInfoGroups);
@@ -340,18 +341,20 @@ public class TestBlockDeletion {
         cluster.getHddsDatanodes().get(0).getDatanodeStateMachine()
             .getContainer().getContainerSet();
     OzoneTestUtils.performOperationOnKeyContainers((blockID) -> {
+      KeyValueContainerData containerData = (KeyValueContainerData) dnContainerSet
+          .getContainer(blockID.getContainerID()).getContainerData();
+      String category = containerData.getCategoryInDB();
       try(ReferenceCountedDB db =
-          BlockUtils.getDB((KeyValueContainerData) dnContainerSet
-          .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
+          BlockUtils.getDB(containerData, conf)) {
         byte[] blockKey = DBKey.getBlockKey(
             blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNull(db.getStore().get(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             blockKey));
         byte[] deletingKey = DBKey.getDeletingKey(
             blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNull(db.getStore().get(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             deletingKey));
         byte[] deletedKey = DBKey.getDeletedKey(
             blockID.getContainerID(), blockID.getLocalID());

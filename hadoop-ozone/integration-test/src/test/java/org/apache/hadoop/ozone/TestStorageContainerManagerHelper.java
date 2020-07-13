@@ -98,11 +98,12 @@ public class TestStorageContainerManagerHelper {
       throws IOException {
     List<String> pendingDeletionBlocks = Lists.newArrayList();
     ReferenceCountedDB meta = getContainerMetadata(containerID);
+    KeyValueContainerData containerData = getContainerData(containerID);
     byte[] prefixKey = DBKey.getDeletingKey(containerID);
     KeyPrefixFilter filter =
         new KeyPrefixFilter().addFilter(prefixKey);
     List<Map.Entry<byte[], byte[]>> kvs = meta.getStore()
-        .getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
+        .getRangeKVs(containerData.getCategoryInDB(),
             null, Integer.MAX_VALUE, filter);
     kvs.forEach(entry -> {
       DBKey deletingKey = DBKey.newBuilder()
@@ -128,8 +129,9 @@ public class TestStorageContainerManagerHelper {
   public List<Long> getAllBlocks(Long containeID) throws IOException {
     List<Long> allBlocks = Lists.newArrayList();
     ReferenceCountedDB meta = getContainerMetadata(containeID);
+    KeyValueContainerData containerData = getContainerData(containeID);
     List<Map.Entry<byte[], byte[]>> kvs =
-        meta.getStore().getRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY,
+        meta.getStore().getRangeKVs(containerData.getCategoryInDB(),
             null, Integer.MAX_VALUE,
             new MetadataKeyFilters.KeyPrefixFilter()
                 .addFilter(Longs.toByteArray(containeID)));
@@ -154,6 +156,20 @@ public class TestStorageContainerManagerHelper {
         (KeyValueContainerData) containerServer.getContainerSet()
         .getContainer(containerID).getContainerData();
     return BlockUtils.getDB(containerData, conf);
+  }
+
+  private KeyValueContainerData getContainerData(Long containerID)
+      throws IOException {
+    ContainerWithPipeline containerWithPipeline = cluster
+        .getStorageContainerManager().getClientProtocolServer()
+        .getContainerWithPipeline(containerID);
+
+    DatanodeDetails dn =
+        containerWithPipeline.getPipeline().getFirstNode();
+    OzoneContainer containerServer =
+        getContainerServerByDatanodeUuid(dn.getUuidString());
+    return (KeyValueContainerData) containerServer.getContainerSet()
+        .getContainer(containerID).getContainerData();
   }
 
   private OzoneContainer getContainerServerByDatanodeUuid(String dnUUID)

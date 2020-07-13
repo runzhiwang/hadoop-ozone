@@ -162,6 +162,7 @@ public final class KeyValueContainerUtil {
       return;
     }
 
+    String category = kvContainerData.getCategoryInDB();
     boolean isBlockMetadataSet = false;
 
     try(ReferenceCountedDB containerDB = BlockUtils.getDB(kvContainerData,
@@ -172,7 +173,7 @@ public final class KeyValueContainerUtil {
           DBKey.getPendingDeleteCountDBKey(containerID);
       byte[] pendingDeleteBlockCount =
           containerDB.getStore().get(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              category,
               pendingDeleteCountKey);
       if (pendingDeleteBlockCount != null) {
         kvContainerData.incrPendingDeletionBlocks(
@@ -184,7 +185,7 @@ public final class KeyValueContainerUtil {
             new MetadataKeyFilters.KeyPrefixFilter().addFilter(prefixKey);
         int numPendingDeletionBlocks =
             containerDB.getStore().getSequentialRangeKVs(
-                RocksDB.DEFAULT_COLUMN_FAMILY,
+                category,
                 null,
                 Integer.MAX_VALUE, filter)
                 .size();
@@ -194,7 +195,7 @@ public final class KeyValueContainerUtil {
       // Set delete transaction id.
       byte[] dbKey = DBKey.getDelTxDBKey(containerID);
       byte[] delTxnId =
-          containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY,
+          containerDB.getStore().get(category,
               dbKey);
       if (delTxnId != null) {
         kvContainerData
@@ -204,7 +205,7 @@ public final class KeyValueContainerUtil {
       byte[] seqIdKey = DBKey.getBcsIdDBKey(containerID);
       // Set BlockCommitSequenceId.
       byte[] bcsId = containerDB.getStore().get(
-          RocksDB.DEFAULT_COLUMN_FAMILY,
+          category,
           seqIdKey);
       if (bcsId != null) {
         kvContainerData
@@ -216,7 +217,7 @@ public final class KeyValueContainerUtil {
       byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
       byte[] bytesUsed =
           containerDB.getStore().get(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              category,
               containerBytesUsedKey);
       if (bytesUsed != null) {
         isBlockMetadataSet = true;
@@ -226,7 +227,7 @@ public final class KeyValueContainerUtil {
       // Set block count.
       byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       byte[] blockCount = containerDB.getStore().get(
-          RocksDB.DEFAULT_COLUMN_FAMILY,
+          category,
           blockCountKey);
       if (blockCount != null) {
         isBlockMetadataSet = true;

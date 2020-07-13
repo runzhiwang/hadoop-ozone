@@ -232,6 +232,7 @@ public class TestOzoneContainer {
 
     long freeBytes = container.getContainerData().getMaxSize();
     long containerId = container.getContainerData().getContainerID();
+    String category = container.getContainerData().getCategoryInDB();
     ReferenceCountedDB db = BlockUtils.getDB(container
         .getContainerData(), conf);
 
@@ -252,7 +253,7 @@ public class TestOzoneContainer {
       blockData.setChunks(chunkList);
       byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
       db.getStore().put(
-          RocksDB.DEFAULT_COLUMN_FAMILY,
+          category,
           blockKey,
           blockData.getProtoBufMessage().toByteArray());
     }
@@ -260,12 +261,12 @@ public class TestOzoneContainer {
     // Set Block count and used bytes.
     byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
     db.getStore().put(
-        RocksDB.DEFAULT_COLUMN_FAMILY,
+        category,
         blockCountKey,
         Longs.toByteArray(blocks));
     byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerId);
     db.getStore().put(
-        RocksDB.DEFAULT_COLUMN_FAMILY,
+        category,
         containerBytesUsedKey,
         Longs.toByteArray(usedBytes));
 

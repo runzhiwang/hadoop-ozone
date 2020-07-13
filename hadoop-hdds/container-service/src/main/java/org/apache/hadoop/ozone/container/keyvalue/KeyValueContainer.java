@@ -377,7 +377,8 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
   private void compactDB() throws StorageContainerException {
     try {
       try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
-        db.getStore().compactRange(RocksDB.DEFAULT_COLUMN_FAMILY);
+        String category = getContainerData().getCategoryInDB();
+        db.getStore().compactRange(category);
       }
     } catch (StorageContainerException ex) {
       throw ex;

@@ -609,7 +609,7 @@ public class TestContainerStateMachineFailures {
     byte[] blockCommitSequenceIdKey = DBKey.getBcsIdDBKey(containerID);
     // modify the bcsid for the container in the ROCKS DB thereby inducing
     // corruption
-    db.getStore().put(RocksDB.DEFAULT_COLUMN_FAMILY,
+    db.getStore().put(keyValueContainerData.getCategoryInDB(),
         blockCommitSequenceIdKey, Longs.toByteArray(0));
     db.decrementReference();
     // shutdown of dn will take a snapsot which will persist the valid BCSID

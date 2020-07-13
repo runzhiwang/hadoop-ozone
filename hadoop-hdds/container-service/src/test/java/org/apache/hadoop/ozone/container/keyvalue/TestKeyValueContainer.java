@@ -176,7 +176,7 @@ public class TestKeyValueContainer {
         blockData.setChunks(chunkList);
         byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            keyValueContainerData.getCategoryInDB(),
             blockKey,
             blockData.getProtoBufMessage().toByteArray());
       }
@@ -226,7 +226,7 @@ public class TestKeyValueContainer {
         BlockUtils.getDB(keyValueContainerData, conf)) {
       for (int i = 0; i < numberOfKeysToWrite; i++) {
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            keyValueContainerData.getCategoryInDB(),
             ("test" + i).getBytes(UTF_8),
             "test".getBytes(UTF_8));
       }
@@ -235,7 +235,7 @@ public class TestKeyValueContainer {
       // As for test, we are doing manually so adding key count to DB.
       byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
       metadataStore.getStore().put(
-          RocksDB.DEFAULT_COLUMN_FAMILY,
+          keyValueContainerData.getCategoryInDB(),
           blockCountKey,
           Longs.toByteArray(numberOfKeysToWrite));
     }

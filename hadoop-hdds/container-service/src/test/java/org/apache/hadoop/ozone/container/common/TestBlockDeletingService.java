@@ -176,7 +176,7 @@ public class TestBlockDeletingService {
           }
           kd.setChunks(chunks);
           metadata.getStore().put(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              data.getCategoryInDB(),
               deleteStateName,
               kd.getProtoBufMessage().toByteArray());
           container.getContainerData().incrPendingDeletionBlocks(1);
@@ -188,18 +188,18 @@ public class TestBlockDeletingService {
         // Set block count, bytes used and pending delete block count.
         byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
         metadata.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            data.getCategoryInDB(),
             blockCountKey,
             Longs.toByteArray(numOfBlocksPerContainer));
         byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
         metadata.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            data.getCategoryInDB(),
             containerBytesUsedKey,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
         byte[] pendingDeleteCountKey =
             DBKey.getPendingDeleteCountDBKey(containerID);
         metadata.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            data.getCategoryInDB(),
             pendingDeleteCountKey,
             Ints.toByteArray(numOfBlocksPerContainer));
       }
@@ -221,11 +221,12 @@ public class TestBlockDeletingService {
    * note this info is parsed from container.db.
    */
   private int getUnderDeletionBlocksCount(
-      long containerID, ReferenceCountedDB meta) throws IOException {
+      long containerID, ReferenceCountedDB meta, String category)
+      throws IOException {
     byte[] prefixKey = DBKey.getDeletingKey(containerID);
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
         meta.getStore().getRangeKVs(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             null,
             100,
             new MetadataKeyFilters.KeyPrefixFilter()
@@ -234,11 +235,12 @@ public class TestBlockDeletingService {
   }
 
   private int getDeletedBlocksCount(
-      long containerID, ReferenceCountedDB db) throws IOException {
+      long containerID, ReferenceCountedDB db, String category)
+      throws IOException {
     byte[] prefixKey = DBKey.getDeletedKey(containerID);
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
         db.getStore().getRangeKVs(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             null,
             100,
             new MetadataKeyFilters.KeyPrefixFilter()
@@ -260,13 +262,16 @@ public class TestBlockDeletingService {
     GenericTestUtils.waitFor(svc::isStarted, 100, 3000);
 
     // Ensure 1 container was created
-    List<ContainerData> containerData = Lists.newArrayList();
-    containerSet.listContainer(0L, 1, containerData);
-    Assert.assertEquals(1, containerData.size());
+    List<ContainerData> containerDatas = Lists.newArrayList();
+    containerSet.listContainer(0L, 1, containerDatas);
+    Assert.assertEquals(1, containerDatas.size());
 
+    KeyValueContainerData containerData =
+        (KeyValueContainerData) containerDatas.get(0);
+    String category = containerData.getCategoryInDB();
     try(ReferenceCountedDB meta = BlockUtils.getDB(
-        (KeyValueContainerData) containerData.get(0), conf)) {
-      long containerID = containerData.get(0).getContainerID();
+        containerData, conf)) {
+      long containerID = containerData.getContainerID();
       Map<Long, Container<?>> containerMap = containerSet.getContainerMapCopy();
       // NOTE: this test assumes that all the container is KetValueContainer and
       // have DeleteTransactionId in KetValueContainerData. If other
@@ -281,21 +286,21 @@ public class TestBlockDeletingService {
       Assert.assertEquals(0, transactionId);
 
       // Ensure there are 3 blocks under deletion and 0 deleted blocks
-      Assert.assertEquals(3, getUnderDeletionBlocksCount(containerID, meta));
-      Assert.assertEquals(0, getDeletedBlocksCount(containerID, meta));
+      Assert.assertEquals(3, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(0, getDeletedBlocksCount(containerID, meta, category));
 
       // An interval will delete 1 * 2 blocks
       deleteAndWait(svc, 1);
-      Assert.assertEquals(1, getUnderDeletionBlocksCount(containerID, meta));
-      Assert.assertEquals(2, getDeletedBlocksCount(containerID, meta));
+      Assert.assertEquals(1, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(2, getDeletedBlocksCount(containerID, meta, category));
 
       deleteAndWait(svc, 2);
-      Assert.assertEquals(0, getUnderDeletionBlocksCount(containerID, meta));
-      Assert.assertEquals(3, getDeletedBlocksCount(containerID, meta));
+      Assert.assertEquals(0, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(3, getDeletedBlocksCount(containerID, meta, category));
 
       deleteAndWait(svc, 3);
-      Assert.assertEquals(0, getUnderDeletionBlocksCount(containerID, meta));
-      Assert.assertEquals(3, getDeletedBlocksCount(containerID, meta));
+      Assert.assertEquals(0, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(3, getDeletedBlocksCount(containerID, meta, category));
 
 
       // Check finally DB counters.
@@ -304,12 +309,12 @@ public class TestBlockDeletingService {
           DBKey.getPendingDeleteCountDBKey(containerID);
       Assert.assertEquals(0, Ints.fromByteArray(
           meta.getStore().get(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              category,
               pendingDeleteCountKey)));
       byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       Assert.assertEquals(0, Longs.fromByteArray(
           meta.getStore().get(
-              RocksDB.DEFAULT_COLUMN_FAMILY,
+              category,
               blockCountKey)));
     }
 
@@ -393,7 +398,7 @@ public class TestBlockDeletingService {
       GenericTestUtils.waitFor(() -> {
         try {
           long containerID = container.getContainerData().getContainerID();
-          return getUnderDeletionBlocksCount(containerID, meta) == 0;
+          return getUnderDeletionBlocksCount(containerID, meta, data.getCategoryInDB()) == 0;
         } catch (IOException ignored) {
         }
         return false;
