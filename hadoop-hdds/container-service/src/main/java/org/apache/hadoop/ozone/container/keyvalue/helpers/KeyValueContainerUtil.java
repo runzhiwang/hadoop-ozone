@@ -160,9 +160,6 @@ public final class KeyValueContainerUtil {
       // Don't further process this container, as it is missing db file.
       return;
     }
-    kvContainerData.setDbPath(dbFile.getAbsolutePath());
-    kvContainerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
-
 
     boolean isBlockMetadataSet = false;
 
