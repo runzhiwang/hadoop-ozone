@@ -262,6 +262,7 @@ public class TestKeyValueBlockIterator {
     container.create(dbManager, volumeSet,
         new RoundRobinVolumeChoosingPolicy(),
         scmID);
+    String category = containerData.getCategoryInDB();
     try(ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
         conf)) {
 
@@ -275,7 +276,7 @@ public class TestKeyValueBlockIterator {
         blockData.setChunks(chunkList);
         byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             blockKey,
             blockData.getProtoBufMessage().toByteArray());
       }
@@ -287,7 +288,7 @@ public class TestKeyValueBlockIterator {
         byte[] deletingKey = DBKey.getDeletingKey(
             blockID.getContainerID(), blockID.getLocalID());
         metadataStore.getStore().put(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             deletingKey,
             blockData.getProtoBufMessage().toByteArray());
       }

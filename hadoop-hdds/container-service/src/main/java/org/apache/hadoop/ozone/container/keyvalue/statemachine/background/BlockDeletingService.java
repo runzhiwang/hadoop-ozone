@@ -253,6 +253,7 @@ public class BlockDeletingService extends BackgroundService {
           .getContainer(containerData.getContainerID());
       container.writeLock();
       long startTime = Time.monotonicNow();
+      String category = containerData.getCategoryInDB();
       // Scan container's db and get list of under deletion blocks
       try (ReferenceCountedDB meta = BlockUtils.getDB(containerData, conf)) {
         // # of blocks to delete is throttled
@@ -260,7 +261,7 @@ public class BlockDeletingService extends BackgroundService {
             DBKey.getDeletingKey(containerData.getContainerID());
         KeyPrefixFilter filter = new KeyPrefixFilter().addFilter(prefixKey);
         List<Map.Entry<byte[], byte[]>> toDeleteBlocks =
-            meta.getStore().getSequentialRangeKVs(RocksDB.DEFAULT_COLUMN_FAMILY, null, blockLimitPerTask,
+            meta.getStore().getSequentialRangeKVs(category, null, blockLimitPerTask,
                 filter);
         if (toDeleteBlocks.isEmpty()) {
           LOG.debug("No under deletion block found in container : {}",
@@ -304,10 +305,10 @@ public class BlockDeletingService extends BackgroundService {
         succeedBlocks.forEach(entry -> {
           byte[] deletedEntry = DBKey.getDeletedKey(
               entry.getContainerID(), entry.getBlockLocalID());
-          batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          batch.put(category,
               deletedEntry,
               StringUtils.string2Bytes(String.valueOf(entry.getBlockLocalID())));
-          batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY,
+              batch.delete(category,
               entry.getDBByteKey());
         });
 

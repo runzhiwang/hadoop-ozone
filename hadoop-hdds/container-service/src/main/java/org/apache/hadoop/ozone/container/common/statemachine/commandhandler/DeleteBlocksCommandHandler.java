@@ -206,6 +206,7 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       return;
     }
 
+    String category = containerData.getCategoryInDB();
     int newDeletionBlocks = 0;
     try(ReferenceCountedDB containerDB =
             BlockUtils.getDB(containerData, conf)) {
@@ -213,14 +214,14 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
         BatchOperation batch = new BatchOperation();
         byte[] blkBytes = DBKey.getBlockKey(containerId, blk);
         byte[] blkInfo = containerDB.getStore().get(
-            RocksDB.DEFAULT_COLUMN_FAMILY,
+            category,
             blkBytes);
         if (blkInfo != null) {
           byte[] deletingKeyBytes = DBKey.getDeletingKey(containerId, blk);
           byte[] deletedKeyBytes = DBKey.getDeletedKey(containerId, blk);
 
-          if (containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletingKeyBytes) != null
-              || containerDB.getStore().get(RocksDB.DEFAULT_COLUMN_FAMILY, deletedKeyBytes) != null) {
+          if (containerDB.getStore().get(category, deletingKeyBytes) != null
+              || containerDB.getStore().get(category, deletedKeyBytes) != null) {
             if (LOG.isDebugEnabled()) {
               LOG.debug(String.format(
                   "Ignoring delete for block %d in container %d."
@@ -230,9 +231,9 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
           }
           // Found the block in container db,
           // use an atomic update to change its state to deleting.
-          batch.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+          batch.put(category,
               deletingKeyBytes, blkInfo);
-          batch.delete(RocksDB.DEFAULT_COLUMN_FAMILY, blkBytes);
+          batch.delete(category, blkBytes);
           try {
             containerDB.getStore().writeBatch(batch);
             newDeletionBlocks++;
@@ -263,13 +264,13 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       if (delTX.getTxID() > containerData.getDeleteTransactionId()) {
         // Update in DB pending delete key count and delete transaction ID.
         byte[] dbKey = DBKey.getDelTxDBKey(containerId);
-        batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        batchOperation.put(category,
             dbKey, Longs.toByteArray(delTX.getTxID()));
       }
 
       byte[] pendingDeleteCountKey =
           DBKey.getPendingDeleteCountDBKey(containerId);
-      batchOperation.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+      batchOperation.put(category,
           pendingDeleteCountKey,
           Longs.toByteArray(
               containerData.getNumPendingDeletionBlocks() +
