@@ -121,11 +121,11 @@ public class TestStatisticsUpdate {
     //TODO: Support logic to mark a node as dead in NodeManager.
 
     nodeManager.processHeartbeat(datanode2);
-    Thread.sleep(1000);
+    Thread.sleep(3000);
     nodeManager.processHeartbeat(datanode2);
-    Thread.sleep(1000);
+    Thread.sleep(3000);
     nodeManager.processHeartbeat(datanode2);
-    Thread.sleep(1000);
+    Thread.sleep(3000);
     nodeManager.processHeartbeat(datanode2);
     //THEN statistics in SCM should changed.
     stat = nodeManager.getStats();
