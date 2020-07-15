@@ -56,7 +56,7 @@ public class TestRunningDatanodeState {
         new ExecutorCompletionService<>(executorService);
     state.setExecutorCompletionService(ecs);
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < threadPoolSize; i++) {
       stateMachines.add(new EndpointStateMachine(null, null, null));
     }
 
@@ -72,7 +72,6 @@ public class TestRunningDatanodeState {
     Assert.assertTrue((endTime - startTime) >= 500);
 
     futureOne.complete(SHUTDOWN);
-
 
     CompletableFuture<EndpointStateMachine.EndPointStates> futureTwo =
         new CompletableFuture<>();

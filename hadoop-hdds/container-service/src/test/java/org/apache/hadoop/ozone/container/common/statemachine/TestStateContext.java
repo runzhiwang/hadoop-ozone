@@ -204,11 +204,12 @@ public class TestStateContext {
     executorService.submit(() -> futureTwo.get());
 
     Assert.assertFalse(stateContext.isThreadPoolAvailable(executorService));
+
     futureOne.complete("futureOne");
     LambdaTestUtils.await(1000, 100, () ->
         stateContext.isThreadPoolAvailable(executorService));
-    futureTwo.complete("futureTwo");
 
+    futureTwo.complete("futureTwo");
     executorService.shutdown();
   }
 }
