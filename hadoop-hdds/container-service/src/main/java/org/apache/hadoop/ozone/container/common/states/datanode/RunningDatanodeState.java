@@ -153,8 +153,8 @@ public class RunningDatanodeState implements DatanodeState {
   }
 
   @VisibleForTesting
-  public void setExecutorCompletionService(ExecutorCompletionService ecs) {
-    this.ecs = ecs;
+  public void setExecutorCompletionService(ExecutorCompletionService e) {
+    this.ecs = e;
   }
 
   private Callable<EndPointStates> getEndPointTask(
