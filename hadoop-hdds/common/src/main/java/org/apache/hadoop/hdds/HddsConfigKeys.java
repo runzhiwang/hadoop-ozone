@@ -257,4 +257,13 @@ public final class HddsConfigKeys {
       "hdds.datanode.ratis.server.request.timeout";
   public static final String
       HDDS_DATANODE_RATIS_SERVER_REQUEST_TIMEOUT_DEFAULT = "2m";
+
+  public static final String HDDS_DATANODE_ROCKSDB_CONTAINER_LIMIT =
+      "ozone.datanode.rocksdb.container.limit";
+  public static final int HDDS_DATANODE_ROCKSDB_CONTAINER_LIMIT_DEFAULT = 2000;
+
+  public static final String HDDS_DATANODE_ROCKSDB_COLUMNFAMILY_LIMIT =
+      "ozone.datanode.rocksdb.columnfamily.limit";
+  public static final int HDDS_DATANODE_ROCKSDB_COLUMNFAMILY_LIMIT_DEFAULT =
+      200;
 }

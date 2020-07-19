@@ -139,6 +139,12 @@ public final class OzoneConsts {
     }
   }
 
+  public static final String ROCKSDB_DIR = "rocksdb";
+  public static final String ROCKSDB_COUNT_FILE_NAME = "rocksdbCount";
+  public static final String ROCKSDB_COUNT = "rocksdbCount";
+  public static final String ROCKSDB_COUNT_FILE_CREATE_TIME = "createTime";
+  public static final String ROCKSDB_COUNT_FILE_UPDATE_TIME = "updateTime";
+
   public static final String DELETING_KEY_PREFIX = "#deleting#";
   public static final String DELETED_KEY_PREFIX = "#deleted#";
   public static final String DELETE_TRANSACTION_KEY_PREFIX = "#delTX#";
@@ -149,6 +155,8 @@ public final class OzoneConsts {
   public static final String PENDING_DELETE_BLOCK_COUNT =
       "#PENDINGDELETEBLOCKCOUNT";
 
+  public static final String DB_CONTAINER_COUNT = "#DBCONTAINERCOUNT";
+  public static final String CATEGORY_CONTAINER_COUNT = "#CATEGORYCONTAINERCOUNT";
 
   public static final byte[] DB_BLOCK_COUNT_KEY =
       StringUtils.string2Bytes(OzoneConsts.BLOCK_COUNT);
@@ -162,6 +170,7 @@ public final class OzoneConsts {
       StringUtils.string2Bytes(BLOCK_COMMIT_SEQUENCE_ID_PREFIX);
 
 
+  public static final String CATEGORY_NAME_PREFIX = "columnFamily";
 
   /**
    * OM LevelDB prefixes.
