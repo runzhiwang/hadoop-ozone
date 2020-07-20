@@ -37,6 +37,8 @@ import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -51,6 +53,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +90,8 @@ public class TestOzoneContainer {
 
   private final ChunkLayOutVersion layout;
 
+  private DBManager dbManager;
+
   public TestOzoneContainer(ChunkLayOutVersion layout) {
     this.layout = layout;
   }
@@ -110,6 +115,9 @@ public class TestOzoneContainer {
 
   @After
   public void cleanUp() throws Exception {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     if (volumeSet != null) {
       volumeSet.shutdown();
       volumeSet = null;
@@ -123,6 +131,8 @@ public class TestOzoneContainer {
       volume.format(UUID.randomUUID().toString());
       commitSpaceMap.put(getVolumeKey(volume), Long.valueOf(0));
     }
+
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
 
     // Add containers to disk
     for (int i = 0; i < numTestContainers; i++) {
@@ -138,7 +148,7 @@ public class TestOzoneContainer {
           datanodeDetails.getUuidString());
       keyValueContainer = new KeyValueContainer(
           keyValueContainerData, conf);
-      keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+      keyValueContainer.create(dbManager, volumeSet, volumeChoosingPolicy, scmId);
       myVolume = keyValueContainer.getContainerData().getVolume();
 
       freeBytes = addBlocks(keyValueContainer, 2, 3);
@@ -158,13 +168,16 @@ public class TestOzoneContainer {
     // When OzoneContainer is started, the containers from disk should be
     // loaded into the containerSet.
     // Also expected to initialize committed space for each volume.
+    dbManager.close();
     OzoneContainer ozoneContainer = new
         OzoneContainer(datanodeDetails, conf, context, null);
+    ozoneContainer.start(scmId);
 
     ContainerSet containerset = ozoneContainer.getContainerSet();
     assertEquals(numTestContainers, containerset.containerCount());
 
     verifyCommittedSpace(ozoneContainer);
+    ozoneContainer.stop();
   }
 
   @Test
@@ -225,6 +238,9 @@ public class TestOzoneContainer {
       // eat up 10 bytes more, now available space is less than 1 container
       volume.incCommittedBytes(10);
     }
+
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
+
     keyValueContainerData = new KeyValueContainerData(99,
         layout, containerSize,
         UUID.randomUUID().toString(), datanodeDetails.getUuidString());
@@ -233,7 +249,8 @@ public class TestOzoneContainer {
     // we expect an out of space Exception
     StorageContainerException e = LambdaTestUtils.intercept(
         StorageContainerException.class,
-        () -> keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId)
+        () -> keyValueContainer.create(
+            dbManager, volumeSet, volumeChoosingPolicy, scmId)
     );
     if (!DISK_OUT_OF_SPACE.equals(e.getResult())) {
       LOG.info("Unexpected error during container creation", e);
@@ -261,8 +278,9 @@ public class TestOzoneContainer {
 
     long freeBytes = container.getContainerData().getMaxSize();
     long containerId = container.getContainerData().getContainerID();
-    ReferenceCountedDB db = BlockUtils.getDB(container
-        .getContainerData(), conf);
+    String category = container.getContainerData().getCategoryInDB();
+    ReferenceCountedDB db = DBManager.getDB(container
+        .getContainerData().getDbPath());
 
     for (int bi = 0; bi < blocks; bi++) {
       // Creating BlockData
@@ -279,14 +297,23 @@ public class TestOzoneContainer {
         chunkList.add(info.getProtoBufMessage());
       }
       blockData.setChunks(chunkList);
-      db.getStore().put(Longs.toByteArray(blockID.getLocalID()),
+      byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
+      db.getStore().put(
+          category,
+          blockKey,
           blockData.getProtoBufMessage().toByteArray());
     }
 
     // Set Block count and used bytes.
-    db.getStore().put(OzoneConsts.DB_BLOCK_COUNT_KEY,
+    byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
+    db.getStore().put(
+        category,
+        blockCountKey,
         Longs.toByteArray(blocks));
-    db.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+    byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerId);
+    db.getStore().put(
+        category,
+        containerBytesUsedKey,
         Longs.toByteArray(usedBytes));
 
     // remaining available capacity of the container

@@ -24,6 +24,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.rocksdb.RocksDB;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -57,6 +58,7 @@ public class BenchMarkMetadataStoreWrites {
   @Benchmark
   public void test() throws IOException {
     long x = org.apache.commons.lang3.RandomUtils.nextLong(0L, MAX_KEYS);
-    store.put(Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
+    store.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
   }
 }

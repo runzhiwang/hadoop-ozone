@@ -48,6 +48,8 @@ import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDeletionChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -60,6 +62,7 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_CONTA
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER_DEFAULT;
 import org.apache.ratis.thirdparty.com.google.protobuf.InvalidProtocolBufferException;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -251,20 +254,22 @@ public class BlockDeletingService extends BackgroundService {
           .getContainer(containerData.getContainerID());
       container.writeLock();
       long startTime = Time.monotonicNow();
+      String category = containerData.getCategoryInDB();
       // Scan container's db and get list of under deletion blocks
-      try (ReferenceCountedDB meta = BlockUtils.getDB(containerData, conf)) {
+      try (ReferenceCountedDB meta = DBManager.getDB(containerData.getDbPath())) {
         // # of blocks to delete is throttled
-        KeyPrefixFilter filter =
-            new KeyPrefixFilter().addFilter(OzoneConsts.DELETING_KEY_PREFIX);
+        byte[] prefixKey =
+            DBKey.getDeletingKey(containerData.getContainerID());
+        KeyPrefixFilter filter = new KeyPrefixFilter().addFilter(prefixKey);
         List<Map.Entry<byte[], byte[]>> toDeleteBlocks =
-            meta.getStore().getSequentialRangeKVs(null, blockLimitPerTask,
+            meta.getStore().getSequentialRangeKVs(category, null, blockLimitPerTask,
                 filter);
         if (toDeleteBlocks.isEmpty()) {
           LOG.debug("No under deletion block found in container : {}",
               containerData.getContainerID());
         }
 
-        List<String> succeedBlocks = new LinkedList<>();
+        List<DBKey> succeedBlocks = new LinkedList<>();
         LOG.debug("Container : {}, To-Delete blocks : {}",
             containerData.getContainerID(), toDeleteBlocks.size());
         File dataDir = new File(containerData.getChunksPath());
@@ -278,17 +283,20 @@ public class BlockDeletingService extends BackgroundService {
             .getHandler(container.getContainerType()));
 
         toDeleteBlocks.forEach(entry -> {
-          String blockName = StringUtils.bytes2String(entry.getKey());
-          LOG.debug("Deleting block {}", blockName);
+          DBKey key = DBKey.newBuilder()
+              .setPrefix(OzoneConsts.DELETING_KEY_PREFIX)
+              .setBytes(entry.getKey())
+              .build();
+          LOG.debug("Deleting block {}", key);
           try {
             ContainerProtos.BlockData data =
                 ContainerProtos.BlockData.parseFrom(entry.getValue());
             handler.deleteBlock(container, BlockData.getFromProtoBuf(data));
-            succeedBlocks.add(blockName);
+            succeedBlocks.add(key);
           } catch (InvalidProtocolBufferException e) {
-            LOG.error("Failed to parse block info for block {}", blockName, e);
+            LOG.error("Failed to parse block info for block {}", key, e);
           } catch (IOException e) {
-            LOG.error("Failed to delete files for block {}", blockName, e);
+            LOG.error("Failed to delete files for block {}", key, e);
           }
         });
 
@@ -296,17 +304,19 @@ public class BlockDeletingService extends BackgroundService {
         // entries
         BatchOperation batch = new BatchOperation();
         succeedBlocks.forEach(entry -> {
-          String blockId =
-              entry.substring(OzoneConsts.DELETING_KEY_PREFIX.length());
-          String deletedEntry = OzoneConsts.DELETED_KEY_PREFIX + blockId;
-          batch.put(StringUtils.string2Bytes(deletedEntry),
-              StringUtils.string2Bytes(blockId));
-          batch.delete(StringUtils.string2Bytes(entry));
+          byte[] deletedEntry = DBKey.getDeletedKey(
+              entry.getContainerID(), entry.getBlockLocalID());
+          batch.put(category,
+              deletedEntry,
+              StringUtils.string2Bytes(String.valueOf(entry.getBlockLocalID())));
+              batch.delete(category,
+              entry.getDBByteKey());
         });
 
 
         int deleteBlockCount = succeedBlocks.size();
-        containerData.updateAndCommitDBCounters(meta, batch, deleteBlockCount);
+        containerData.updateAndCommitDBCounters(containerData.getContainerID(),
+            meta, batch, deleteBlockCount);
 
         // update count of pending deletion blocks and block count in in-memory
         // container status.
@@ -318,7 +328,9 @@ public class BlockDeletingService extends BackgroundService {
               containerData.getContainerID(), succeedBlocks.size(),
               Time.monotonicNow() - startTime);
         }
-        crr.addAll(succeedBlocks);
+        for (DBKey key : succeedBlocks) {
+          crr.addBlockId(String.valueOf(key.getBlockLocalID()));
+        }
         return crr;
       } finally {
         container.writeUnlock();

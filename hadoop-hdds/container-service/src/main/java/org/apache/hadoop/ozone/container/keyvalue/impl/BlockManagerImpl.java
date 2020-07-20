@@ -25,18 +25,22 @@ import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.keyvalue.interfaces.BlockManager;
-import org.apache.hadoop.ozone.container.common.utils.ContainerCache;
 import org.apache.hadoop.hdds.utils.BatchOperation;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,9 +49,6 @@ import java.util.Map;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.NO_SUCH_BLOCK;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNKNOWN_BCSID;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.BCSID_MISMATCH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COMMIT_SEQUENCE_ID_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
 
 /**
  * This class is for performing block related operations on the KeyValue
@@ -87,10 +88,20 @@ public class BlockManagerImpl implements BlockManager {
         "operation.");
     Preconditions.checkState(data.getContainerID() >= 0, "Container Id " +
         "cannot be negative");
+    KeyValueContainerData containerData =
+        (KeyValueContainerData) container.getContainerData();
+    // check container meta exist
+    File containerFile = new File(containerData.getContainerPath());
+    if (!containerFile.exists()) {
+      String msg = "Container:" + containerData.getContainerID() +
+          " does not exist";
+      LOG.error(msg);
+      throw new IOException(msg);
+    }
+
     // We are not locking the key manager since LevelDb serializes all actions
     // against a single DB. We rely on DB level locking to avoid conflicts.
-    try(ReferenceCountedDB db = BlockUtils.
-        getDB((KeyValueContainerData) container.getContainerData(), config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -115,9 +126,18 @@ public class BlockManagerImpl implements BlockManager {
       }
       // update the blockData as well as BlockCommitSequenceId here
       BatchOperation batch = new BatchOperation();
-      batch.put(Longs.toByteArray(data.getLocalID()),
+      long containerID = container.getContainerData().getContainerID();
+      String category = ((KeyValueContainerData) container.getContainerData())
+          .getCategoryInDB();
+      byte[] blockKey = DBKey.getBlockKey(containerID, data.getLocalID());
+      batch.put(category,
+          blockKey,
           data.getProtoBufMessage().toByteArray());
-      batch.put(DB_BLOCK_COMMIT_SEQUENCE_ID_KEY, Longs.toByteArray(bcsId));
+
+      byte[] seqIdKey = DBKey.getBcsIdDBKey(containerID);
+      batch.put(category,
+          seqIdKey,
+          Longs.toByteArray(bcsId));
 
       // Set Bytes used, this bytes used will be updated for every write and
       // only get committed for every put block. In this way, when datanode
@@ -125,11 +145,15 @@ public class BlockManagerImpl implements BlockManager {
       // block length is used, And also on restart the blocks committed to DB
       // is only used to compute the bytes used. This is done to keep the
       // current behavior and avoid DB write during write chunk operation.
-      batch.put(DB_CONTAINER_BYTES_USED_KEY,
+      byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
+      batch.put(category,
+          containerBytesUsedKey,
           Longs.toByteArray(container.getContainerData().getBytesUsed()));
 
       // Set Block Count for a container.
-      batch.put(DB_BLOCK_COUNT_KEY,
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
+      batch.put(category,
+          blockCountKey,
           Longs.toByteArray(container.getContainerData().getKeyCount() + 1));
 
       db.getStore().writeBatch(batch);
@@ -165,7 +189,7 @@ public class BlockManagerImpl implements BlockManager {
 
     KeyValueContainerData containerData = (KeyValueContainerData) container
         .getContainerData();
-    try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -177,7 +201,7 @@ public class BlockManagerImpl implements BlockManager {
                 + container.getContainerData().getContainerID() + " bcsId is "
                 + containerBCSId + ".", UNKNOWN_BCSID);
       }
-      byte[] kData = getBlockByID(db, blockID);
+      byte[] kData = getBlockByID(db, containerData.getCategoryInDB(), blockID);
       ContainerProtos.BlockData blockData =
           ContainerProtos.BlockData.parseFrom(kData);
       long id = blockData.getBlockID().getBlockCommitSequenceId();
@@ -203,11 +227,11 @@ public class BlockManagerImpl implements BlockManager {
       throws IOException {
     KeyValueContainerData containerData = (KeyValueContainerData) container
         .getContainerData();
-    try(ReferenceCountedDB db = BlockUtils.getDB(containerData, config)) {
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
-      byte[] kData = getBlockByID(db, blockID);
+      byte[] kData = getBlockByID(db, containerData.getCategoryInDB(), blockID);
       ContainerProtos.BlockData blockData =
           ContainerProtos.BlockData.parseFrom(kData);
       return blockData.getSize();
@@ -231,7 +255,8 @@ public class BlockManagerImpl implements BlockManager {
 
     KeyValueContainerData cData = (KeyValueContainerData) container
         .getContainerData();
-    try(ReferenceCountedDB db = BlockUtils.getDB(cData, config)) {
+    String category = cData.getCategoryInDB();
+    try(ReferenceCountedDB db = DBManager.getDB(cData.getDbPath())) {
       // This is a post condition that acts as a hint to the user.
       // Should never fail.
       Preconditions.checkNotNull(db, DB_NULL_ERR_MSG);
@@ -239,17 +264,20 @@ public class BlockManagerImpl implements BlockManager {
       // are not atomic. Leaving it here since the impact is refusing
       // to delete a Block which might have just gotten inserted after
       // the get check.
-      byte[] blockKey = Longs.toByteArray(blockID.getLocalID());
+      byte[] blockKey = DBKey.getBlockKey(
+          blockID.getContainerID(), blockID.getLocalID());
 
-      getBlockByID(db, blockID);
+      getBlockByID(db, cData.getCategoryInDB(), blockID);
 
       // Update DB to delete block and set block count and bytes used.
       BatchOperation batch = new BatchOperation();
-      batch.delete(blockKey);
+      batch.delete(category, blockKey);
       // Update DB to delete block and set block count.
       // No need to set bytes used here, as bytes used is taken care during
       // delete chunk.
-      batch.put(DB_BLOCK_COUNT_KEY,
+      long containerID = container.getContainerData().getContainerID();
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
+      batch.put(category, blockCountKey,
           Longs.toByteArray(container.getContainerData().getKeyCount() - 1));
       db.getStore().writeBatch(batch);
 
@@ -279,12 +307,15 @@ public class BlockManagerImpl implements BlockManager {
       List<BlockData> result = null;
       KeyValueContainerData cData =
           (KeyValueContainerData) container.getContainerData();
-      try (ReferenceCountedDB db = BlockUtils.getDB(cData, config)) {
+      try (ReferenceCountedDB db = DBManager.getDB(cData.getDbPath())) {
         result = new ArrayList<>();
-        byte[] startKeyInBytes = Longs.toByteArray(startLocalID);
+        byte[] startKeyInBytes = DBKey.getBlockKey(
+            cData.getContainerID(), startLocalID);
         List<Map.Entry<byte[], byte[]>> range = db.getStore()
-            .getSequentialRangeKVs(startKeyInBytes, count,
-                MetadataKeyFilters.getNormalKeyFilter());
+            .getSequentialRangeKVs(cData.getCategoryInDB(),
+                startKeyInBytes, count,
+                new MetadataKeyFilters.KeyPrefixFilter()
+                    .addFilter(Longs.toByteArray(cData.getContainerID())));
         for (Map.Entry<byte[], byte[]> entry : range) {
           BlockData value = BlockUtils.getBlockData(entry.getValue());
           BlockData data = new BlockData(value.getBlockID());
@@ -301,14 +332,15 @@ public class BlockManagerImpl implements BlockManager {
    * Shutdown KeyValueContainerManager.
    */
   public void shutdown() {
-    BlockUtils.shutdownCache(ContainerCache.getInstance(config));
   }
 
-  private byte[] getBlockByID(ReferenceCountedDB db, BlockID blockID)
+  private byte[] getBlockByID(ReferenceCountedDB db, String category, BlockID blockID)
       throws IOException {
-    byte[] blockKey = Longs.toByteArray(blockID.getLocalID());
+    byte[] blockKey = DBKey.getBlockKey(
+        blockID.getContainerID(), blockID.getLocalID());
 
-    byte[] blockData = db.getStore().get(blockKey);
+    byte[] blockData = db.getStore()
+        .get(category, blockKey);
     if (blockData == null) {
       throw new StorageContainerException(NO_SUCH_BLOCK_ERR_MSG,
           NO_SUCH_BLOCK);

@@ -42,6 +42,8 @@ import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -57,6 +59,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.rocksdb.RocksDB;
 import org.slf4j.event.Level;
 
 import java.io.File;
@@ -321,11 +324,15 @@ public class TestBlockDeletion {
         cluster.getHddsDatanodes().get(0).getDatanodeStateMachine()
             .getContainer().getContainerSet();
     OzoneTestUtils.performOperationOnKeyContainers((blockID) -> {
+      KeyValueContainerData containerData = (KeyValueContainerData) dnContainerSet
+          .getContainer(blockID.getContainerID()).getContainerData();
       try(ReferenceCountedDB db =
-          BlockUtils.getDB((KeyValueContainerData) dnContainerSet
-          .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
+          DBManager.getDB(containerData.getDbPath())) {
+        byte[] key = DBKey.getBlockKey(
+            blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNotNull(db.getStore().get(
-            Longs.toByteArray(blockID.getLocalID())));
+            containerData.getCategoryInDB(),
+            key));
       }
     }, omKeyLocationInfoGroups);
   }
@@ -336,15 +343,24 @@ public class TestBlockDeletion {
         cluster.getHddsDatanodes().get(0).getDatanodeStateMachine()
             .getContainer().getContainerSet();
     OzoneTestUtils.performOperationOnKeyContainers((blockID) -> {
+      KeyValueContainerData containerData = (KeyValueContainerData) dnContainerSet
+          .getContainer(blockID.getContainerID()).getContainerData();
+      String category = containerData.getCategoryInDB();
       try(ReferenceCountedDB db =
-          BlockUtils.getDB((KeyValueContainerData) dnContainerSet
-          .getContainer(blockID.getContainerID()).getContainerData(), conf)) {
+          DBManager.getDB(containerData.getDbPath())) {
+        byte[] blockKey = DBKey.getBlockKey(
+            blockID.getContainerID(), blockID.getLocalID());
         Assert.assertNull(db.getStore().get(
-            Longs.toByteArray(blockID.getLocalID())));
-        Assert.assertNull(db.getStore().get(StringUtils.string2Bytes(
-            OzoneConsts.DELETING_KEY_PREFIX + blockID.getLocalID())));
-        Assert.assertNotNull(StringUtils.string2Bytes(
-            OzoneConsts.DELETED_KEY_PREFIX + blockID.getLocalID()));
+            category,
+            blockKey));
+        byte[] deletingKey = DBKey.getDeletingKey(
+            blockID.getContainerID(), blockID.getLocalID());
+        Assert.assertNull(db.getStore().get(
+            category,
+            deletingKey));
+        byte[] deletedKey = DBKey.getDeletedKey(
+            blockID.getContainerID(), blockID.getLocalID());
+        Assert.assertNotNull(deletedKey);
       }
       containerIdsWithDeletedBlocks.add(blockID.getContainerID());
     }, omKeyLocationInfoGroups);

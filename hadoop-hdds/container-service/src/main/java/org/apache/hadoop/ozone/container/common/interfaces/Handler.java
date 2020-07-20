@@ -34,6 +34,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueHandler;
 import org.apache.hadoop.ozone.container.keyvalue.TarContainerPacker;
@@ -65,19 +66,20 @@ public abstract class Handler {
     this.icrSender = icrSender;
   }
 
-  public static Handler getHandlerForContainerType(
+  public static Handler getHandlerForContainerTypeWithDBManager(
       final ContainerType containerType, final ConfigurationSource config,
       final String datanodeId, final ContainerSet contSet,
       final VolumeSet volumeSet, final ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender) {
+      Consumer<ContainerReplicaProto> icrSender, DBManager dbManagerr)
+      throws IOException {
     switch (containerType) {
-    case KeyValueContainer:
-      return new KeyValueHandler(config,
-          datanodeId, contSet, volumeSet, metrics,
-          icrSender);
-    default:
-      throw new IllegalArgumentException("Handler for ContainerType: " +
-          containerType + "doesn't exist.");
+      case KeyValueContainer:
+        return new KeyValueHandler(config,
+            datanodeId, contSet, volumeSet, metrics,
+            icrSender, dbManagerr);
+      default:
+        throw new IllegalArgumentException("Handler for ContainerType: " +
+            containerType + "doesn't exist.");
     }
   }
 
@@ -189,5 +191,7 @@ public abstract class Handler {
   public void setScmID(String scmId) {
     this.scmID = scmId;
   }
+
+  public abstract void initDBManager(String scmID) throws IOException;
 
 }

@@ -32,6 +32,8 @@ import org.apache.hadoop.ozone.common.ChecksumData;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -45,10 +47,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -79,6 +83,8 @@ import static org.junit.Assert.assertFalse;
   private OzoneConfiguration conf;
   private File testRoot;
   private ChunkManager chunkManager;
+  private DBManager dbManager;
+  private String scmId = UUID.randomUUID().toString();
 
   public TestKeyValueContainerCheck(ChunkLayoutTestInfo chunkManagerTestInfo) {
     this.chunkManagerTestInfo = chunkManagerTestInfo;
@@ -98,12 +104,18 @@ import static org.junit.Assert.assertFalse;
     conf.set(HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
     chunkManagerTestInfo.updateConfig(conf);
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
+
     chunkManager = chunkManagerTestInfo.createChunkManager(true, null);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
   }
 
-  @After public void teardown() {
+  @After public void teardown() throws IOException {
     volumeSet.shutdown();
     FileUtil.fullyDelete(testRoot);
+    if (dbManager != null) {
+      dbManager.clean();
+      dbManager = null;
+    }
   }
 
   /**
@@ -160,12 +172,8 @@ import static org.junit.Assert.assertFalse;
         new KeyValueContainerCheck(containerData.getMetadataPath(), conf,
             containerID);
 
-    File metaDir = new File(containerData.getMetadataPath());
-    File dbFile = KeyValueContainerLocationUtil
-        .getContainerDBFile(metaDir, containerID);
-    containerData.setDbFile(dbFile);
     try (ReferenceCountedDB ignored =
-            BlockUtils.getDB(containerData, conf);
+            DBManager.getDB(containerData.getDbPath());
         KeyValueBlockIterator kvIter = new KeyValueBlockIterator(containerID,
             new File(containerData.getContainerPath()))) {
       BlockData block = kvIter.nextBlock();
@@ -223,10 +231,11 @@ import static org.junit.Assert.assertFalse;
         chunksPerBlock * chunkLen * totalBlocks,
         UUID.randomUUID().toString(), UUID.randomUUID().toString());
     container = new KeyValueContainer(containerData, conf);
-    container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
-        UUID.randomUUID().toString());
-    try (ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
-        conf)) {
+    container.create(dbManager, volumeSet,
+        new RoundRobinVolumeChoosingPolicy(),
+        scmId);
+    String category = containerData.getCategoryInDB();
+    try (ReferenceCountedDB metadataStore = DBManager.getDB(containerData.getDbPath())) {
       assertNotNull(containerData.getChunksPath());
       File chunksPath = new File(containerData.getChunksPath());
       chunkManagerTestInfo.validateFileCount(chunksPath, 0, 0);
@@ -252,12 +261,19 @@ import static org.junit.Assert.assertFalse;
 
         if (i >= normalBlocks) {
           // deleted key
-          metadataStore.getStore().put(StringUtils.string2Bytes(
-              OzoneConsts.DELETING_KEY_PREFIX + blockID.getLocalID()),
+          byte[] deletingKey = DBKey.getDeletingKey(blockID.getContainerID(),
+              blockID.getLocalID());
+          metadataStore.getStore().put(
+              category,
+              deletingKey,
               blockData.getProtoBufMessage().toByteArray());
         } else {
           // normal key
-          metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
+          byte[] blockKey =
+              DBKey.getBlockKey(containerId, blockID.getLocalID());
+          metadataStore.getStore().put(
+              category,
+              blockKey,
               blockData.getProtoBufMessage().toByteArray());
         }
       }

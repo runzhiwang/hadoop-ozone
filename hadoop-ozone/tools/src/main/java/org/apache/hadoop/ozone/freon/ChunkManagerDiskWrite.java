@@ -33,6 +33,7 @@ import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext.WriteChunkStage;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -95,6 +96,9 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
   private final ThreadLocal<AtomicLong> bytesWrittenInThread =
       ThreadLocal.withInitial(AtomicLong::new);
 
+  private String scmID = "scmid";
+  private DBManager dbManager;
+
   @Override
   public Void call() throws Exception {
     try {
@@ -104,6 +108,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
       VolumeSet volumeSet =
           new MutableVolumeSet("dnid", "clusterid", ozoneConfiguration);
 
+      dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, ozoneConfiguration);
       Random random = new Random();
 
       VolumeChoosingPolicy volumeChoicePolicy =
@@ -126,7 +131,8 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
         KeyValueContainer keyValueContainer =
             new KeyValueContainer(keyValueContainerData, ozoneConfiguration);
 
-        keyValueContainer.create(volumeSet, volumeChoicePolicy, "scmid");
+        keyValueContainer.create(
+            dbManager, volumeSet, volumeChoicePolicy, scmID);
 
         containersPerThread.put(i, keyValueContainer);
       }

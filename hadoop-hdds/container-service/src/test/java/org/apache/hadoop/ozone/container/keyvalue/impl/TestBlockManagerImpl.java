@@ -27,6 +27,7 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -44,6 +45,7 @@ import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -72,6 +74,7 @@ public class TestBlockManagerImpl {
   private BlockData blockData;
   private BlockManagerImpl blockManager;
   private BlockID blockID;
+  private DBManager dbManager;
 
   private final ChunkLayOutVersion layout;
 
@@ -93,6 +96,7 @@ public class TestBlockManagerImpl {
         .toString()).build();
 
     volumeSet = mock(MutableVolumeSet.class);
+    dbManager = new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmId, config);
 
     volumeChoosingPolicy = mock(RoundRobinVolumeChoosingPolicy.class);
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))
@@ -106,7 +110,8 @@ public class TestBlockManagerImpl {
     keyValueContainer = new KeyValueContainer(
         keyValueContainerData, config);
 
-    keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+    keyValueContainer.create(
+        dbManager, volumeSet, volumeChoosingPolicy, scmId);
 
     // Creating BlockData
     blockID = new BlockID(1L, 1L);

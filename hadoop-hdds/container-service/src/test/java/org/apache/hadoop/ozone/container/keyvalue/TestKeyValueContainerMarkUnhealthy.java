@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -43,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerDataProto.State.OPEN;
@@ -78,6 +80,7 @@ public class TestKeyValueContainerMarkUnhealthy {
   private KeyValueContainerData keyValueContainerData;
   private KeyValueContainer keyValueContainer;
   private UUID datanodeId;
+  private DBManager dbManager;
 
   private final ChunkLayOutVersion layout;
 
@@ -97,7 +100,8 @@ public class TestKeyValueContainerMarkUnhealthy {
     HddsVolume hddsVolume = new HddsVolume.Builder(folder.getRoot()
         .getAbsolutePath()).conf(conf).datanodeUuid(datanodeId
         .toString()).build();
-
+    dbManager =
+        new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmId, conf);
     volumeSet = mock(MutableVolumeSet.class);
     volumeChoosingPolicy = mock(RoundRobinVolumeChoosingPolicy.class);
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))
@@ -161,7 +165,8 @@ public class TestKeyValueContainerMarkUnhealthy {
   public void testMarkClosedContainerAsUnhealthy() throws IOException {
     // We need to create the container so the compact-on-close operation
     // does not NPE.
-    keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+    keyValueContainer.create(
+        dbManager, volumeSet, volumeChoosingPolicy, scmId);
     keyValueContainer.close();
     keyValueContainer.markContainerUnhealthy();
     assertThat(keyValueContainerData.getState(), is(UNHEALTHY));
@@ -174,7 +179,8 @@ public class TestKeyValueContainerMarkUnhealthy {
   public void testMarkQuasiClosedContainerAsUnhealthy() throws IOException {
     // We need to create the container so the sync-on-quasi-close operation
     // does not NPE.
-    keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+    keyValueContainer.create(
+        dbManager, volumeSet, volumeChoosingPolicy, scmId);
     keyValueContainer.quasiClose();
     keyValueContainer.markContainerUnhealthy();
     assertThat(keyValueContainerData.getState(), is(UNHEALTHY));

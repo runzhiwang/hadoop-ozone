@@ -116,10 +116,6 @@ public final class ContainerUtils {
     }
   }
 
-  public static String getContainerDbFileName(String containerName) {
-    return containerName + OzoneConsts.DN_CONTAINER_DB;
-  }
-
   /**
    * Persistent a {@link DatanodeDetails} to a local file.
    *

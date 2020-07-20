@@ -49,6 +49,8 @@ import org.apache.hadoop.ozone.container.common.impl.TopNOrderedContainerDeletio
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -67,17 +69,16 @@ import org.apache.hadoop.test.GenericTestUtils.LogCapturer;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_CONTAINER_LIMIT_PER_INTERVAL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_LIMIT_PER_CONTAINER;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+
+import org.iq80.leveldb.DB;
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 
 
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.byteThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -95,6 +96,8 @@ public class TestBlockDeletingService {
   private Handler handler;
 
   private final ChunkLayOutVersion layout;
+
+  private DBManager dbManager;
 
   public TestBlockDeletingService(ChunkLayOutVersion layout) {
     this.layout = layout;
@@ -121,6 +124,13 @@ public class TestBlockDeletingService {
     FileUtils.deleteDirectory(testRoot);
   }
 
+  @After
+  public void cleanupDB() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
+  }
+
   /**
    * A helper method to create some blocks and put them under deletion
    * state for testing. This method directly updates container.db and
@@ -130,8 +140,10 @@ public class TestBlockDeletingService {
       MutableConfigurationSource conf, int numOfContainers,
       int numOfBlocksPerContainer,
       int numOfChunksPerBlock) throws IOException {
+    conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
+    MutableVolumeSet volumeSet = new MutableVolumeSet(scmId, clusterID, conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId, conf);
     for (int x = 0; x < numOfContainers; x++) {
-      conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
       long containerID = ContainerTestHelper.getTestContainerID();
       KeyValueContainerData data = new KeyValueContainerData(containerID,
           layout,
@@ -139,19 +151,19 @@ public class TestBlockDeletingService {
           UUID.randomUUID().toString());
       data.closeContainer();
       KeyValueContainer container = new KeyValueContainer(data, conf);
-      container.create(new MutableVolumeSet(scmId, clusterID, conf),
+      container.create(dbManager, volumeSet,
           new RoundRobinVolumeChoosingPolicy(), scmId);
       containerSet.addContainer(container);
       data = (KeyValueContainerData) containerSet.getContainer(
           containerID).getContainerData();
 
       long blockLength = 100;
-      try(ReferenceCountedDB metadata = BlockUtils.getDB(data, conf)) {
+      try(ReferenceCountedDB metadata = DBManager.getDB(data.getDbPath())) {
         for (int j = 0; j < numOfBlocksPerContainer; j++) {
           BlockID blockID =
               ContainerTestHelper.getTestBlockID(containerID);
-          String deleteStateName = OzoneConsts.DELETING_KEY_PREFIX +
-              blockID.getLocalID();
+          byte[] deleteStateName =
+              DBKey.getDeletingKey(containerID, blockID.getLocalID());
           BlockData kd = new BlockData(blockID);
           List<ContainerProtos.ChunkInfo> chunks = Lists.newArrayList();
           for (int k = 0; k < numOfChunksPerBlock; k++) {
@@ -165,7 +177,9 @@ public class TestBlockDeletingService {
             chunks.add(info);
           }
           kd.setChunks(chunks);
-          metadata.getStore().put(StringUtils.string2Bytes(deleteStateName),
+          metadata.getStore().put(
+              data.getCategoryInDB(),
+              deleteStateName,
               kd.getProtoBufMessage().toByteArray());
           container.getContainerData().incrPendingDeletionBlocks(1);
         }
@@ -174,11 +188,21 @@ public class TestBlockDeletingService {
         container.getContainerData().setBytesUsed(
             blockLength * numOfBlocksPerContainer);
         // Set block count, bytes used and pending delete block count.
-        metadata.getStore().put(DB_BLOCK_COUNT_KEY,
+        byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
+        metadata.getStore().put(
+            data.getCategoryInDB(),
+            blockCountKey,
             Longs.toByteArray(numOfBlocksPerContainer));
-        metadata.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+        byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
+        metadata.getStore().put(
+            data.getCategoryInDB(),
+            containerBytesUsedKey,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
-        metadata.getStore().put(DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        byte[] pendingDeleteCountKey =
+            DBKey.getPendingDeleteCountDBKey(containerID);
+        metadata.getStore().put(
+            data.getCategoryInDB(),
+            pendingDeleteCountKey,
             Longs.toByteArray(numOfBlocksPerContainer));
       }
     }
@@ -198,20 +222,31 @@ public class TestBlockDeletingService {
    * Get under deletion blocks count from DB,
    * note this info is parsed from container.db.
    */
-  private int getUnderDeletionBlocksCount(ReferenceCountedDB meta)
+  private int getUnderDeletionBlocksCount(
+      long containerID, ReferenceCountedDB meta, String category)
       throws IOException {
+    byte[] prefixKey = DBKey.getDeletingKey(containerID);
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
-        meta.getStore().getRangeKVs(null, 100,
+        meta.getStore().getRangeKVs(
+            category,
+            null,
+            100,
             new MetadataKeyFilters.KeyPrefixFilter()
-                .addFilter(OzoneConsts.DELETING_KEY_PREFIX));
+                .addFilter(prefixKey));
     return underDeletionBlocks.size();
   }
 
-  private int getDeletedBlocksCount(ReferenceCountedDB db) throws IOException {
+  private int getDeletedBlocksCount(
+      long containerID, ReferenceCountedDB db, String category)
+      throws IOException {
+    byte[] prefixKey = DBKey.getDeletedKey(containerID);
     List<Map.Entry<byte[], byte[]>> underDeletionBlocks =
-        db.getStore().getRangeKVs(null, 100,
+        db.getStore().getRangeKVs(
+            category,
+            null,
+            100,
             new MetadataKeyFilters.KeyPrefixFilter()
-            .addFilter(OzoneConsts.DELETED_KEY_PREFIX));
+            .addFilter(prefixKey));
     return underDeletionBlocks.size();
   }
 
@@ -229,18 +264,22 @@ public class TestBlockDeletingService {
     GenericTestUtils.waitFor(svc::isStarted, 100, 3000);
 
     // Ensure 1 container was created
-    List<ContainerData> containerData = Lists.newArrayList();
-    containerSet.listContainer(0L, 1, containerData);
-    Assert.assertEquals(1, containerData.size());
+    List<ContainerData> containerDatas = Lists.newArrayList();
+    containerSet.listContainer(0L, 1, containerDatas);
+    Assert.assertEquals(1, containerDatas.size());
 
-    try(ReferenceCountedDB meta = BlockUtils.getDB(
-        (KeyValueContainerData) containerData.get(0), conf)) {
+    KeyValueContainerData containerData =
+        (KeyValueContainerData) containerDatas.get(0);
+    String category = containerData.getCategoryInDB();
+    try(ReferenceCountedDB meta = DBManager.getDB(
+        containerData.getDbPath())) {
+      long containerID = containerData.getContainerID();
       Map<Long, Container<?>> containerMap = containerSet.getContainerMapCopy();
       // NOTE: this test assumes that all the container is KetValueContainer and
       // have DeleteTransactionId in KetValueContainerData. If other
       // types is going to be added, this test should be checked.
       long transactionId = ((KeyValueContainerData) containerMap
-          .get(containerData.get(0).getContainerID()).getContainerData())
+          .get(containerID).getContainerData())
           .getDeleteTransactionId();
 
 
@@ -249,31 +288,36 @@ public class TestBlockDeletingService {
       Assert.assertEquals(0, transactionId);
 
       // Ensure there are 3 blocks under deletion and 0 deleted blocks
-      Assert.assertEquals(3, getUnderDeletionBlocksCount(meta));
-      Assert.assertEquals(3, Longs.fromByteArray(
-          meta.getStore().get(DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
-      Assert.assertEquals(0, getDeletedBlocksCount(meta));
+      Assert.assertEquals(3, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(0, getDeletedBlocksCount(containerID, meta, category));
 
       // An interval will delete 1 * 2 blocks
       deleteAndWait(svc, 1);
-      Assert.assertEquals(1, getUnderDeletionBlocksCount(meta));
-      Assert.assertEquals(2, getDeletedBlocksCount(meta));
+      Assert.assertEquals(1, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(2, getDeletedBlocksCount(containerID, meta, category));
 
       deleteAndWait(svc, 2);
-      Assert.assertEquals(0, getUnderDeletionBlocksCount(meta));
-      Assert.assertEquals(3, getDeletedBlocksCount(meta));
+      Assert.assertEquals(0, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(3, getDeletedBlocksCount(containerID, meta, category));
 
       deleteAndWait(svc, 3);
-      Assert.assertEquals(0, getUnderDeletionBlocksCount(meta));
-      Assert.assertEquals(3, getDeletedBlocksCount(meta));
+      Assert.assertEquals(0, getUnderDeletionBlocksCount(containerID, meta, category));
+      Assert.assertEquals(3, getDeletedBlocksCount(containerID, meta, category));
 
 
       // Check finally DB counters.
       // Not checking bytes used, as handler is a mock call.
+      byte[] pendingDeleteCountKey =
+          DBKey.getPendingDeleteCountDBKey(containerID);
       Assert.assertEquals(0, Longs.fromByteArray(
-          meta.getStore().get(DB_PENDING_DELETE_BLOCK_COUNT_KEY)));
+          meta.getStore().get(
+              category,
+              pendingDeleteCountKey)));
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
       Assert.assertEquals(0, Longs.fromByteArray(
-          meta.getStore().get(DB_BLOCK_COUNT_KEY)));
+          meta.getStore().get(
+              category,
+              blockCountKey)));
     }
 
     svc.shutdown();
@@ -335,6 +379,9 @@ public class TestBlockDeletingService {
     log.stopCapturing();
     svc.shutdown();
 
+    if (dbManager != null) {
+      dbManager.clean();
+    }
     // test for normal case that doesn't have timeout limitation
     timeout  = 0;
     createToDeleteBlocks(containerSet, conf, 1, 3, 1);
@@ -347,12 +394,13 @@ public class TestBlockDeletingService {
     KeyValueContainer container =
         (KeyValueContainer) containerSet.getContainerIterator().next();
     KeyValueContainerData data = container.getContainerData();
-    try (ReferenceCountedDB meta = BlockUtils.getDB(data, conf)) {
+    try (ReferenceCountedDB meta = DBManager.getDB(data.getDbPath())) {
 
       LogCapturer newLog = LogCapturer.captureLogs(BackgroundService.LOG);
       GenericTestUtils.waitFor(() -> {
         try {
-          return getUnderDeletionBlocksCount(meta) == 0;
+          long containerID = container.getContainerData().getContainerID();
+          return getUnderDeletionBlocksCount(containerID, meta, data.getCategoryInDB()) == 0;
         } catch (IOException ignored) {
         }
         return false;

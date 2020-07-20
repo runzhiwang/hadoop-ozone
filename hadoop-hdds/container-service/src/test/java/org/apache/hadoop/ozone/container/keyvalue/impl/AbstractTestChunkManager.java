@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -41,6 +42,8 @@ import org.mockito.Mockito;
 import java.io.File;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -64,6 +67,8 @@ public abstract class AbstractTestChunkManager {
   private ByteBuffer data;
   private byte[] header;
   private BlockManager blockManager;
+  private String scmID = UUID.randomUUID().toString();
+  private DBManager dbManager;
 
   @Rule
   public TemporaryFolder folder = new TemporaryFolder();
@@ -98,7 +103,9 @@ public abstract class AbstractTestChunkManager {
 
     keyValueContainer = new KeyValueContainer(keyValueContainerData, config);
 
-    keyValueContainer.create(volumeSet, volumeChoosingPolicy,
+    dbManager =
+        new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmID, config);
+    keyValueContainer.create(dbManager, volumeSet, volumeChoosingPolicy,
         UUID.randomUUID().toString());
 
     header = "my header".getBytes(UTF_8);

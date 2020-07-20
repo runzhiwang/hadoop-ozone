@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.container.keyvalue;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,6 +38,8 @@ import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
@@ -55,6 +58,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.rocksdb.RocksDB;
 
 /**
  * This class is used to test KeyValue container block iterator.
@@ -67,6 +71,8 @@ public class TestKeyValueBlockIterator {
   private MutableVolumeSet volumeSet;
   private OzoneConfiguration conf;
   private File testRoot;
+  private String scmID = UUID.randomUUID().toString();
+  private DBManager dbManager;
 
   private final ChunkLayOutVersion layout;
 
@@ -88,13 +94,15 @@ public class TestKeyValueBlockIterator {
     conf = new OzoneConfiguration();
     conf.set(HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
     volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmID, conf);
   }
 
 
   @After
-  public void tearDown() {
+  public void tearDown() throws IOException {
     volumeSet.shutdown();
     FileUtil.fullyDelete(testRoot);
+    dbManager.clean();
   }
 
   @Test
@@ -180,10 +188,6 @@ public class TestKeyValueBlockIterator {
       assertTrue(keyValueBlockIterator.hasNext());
       assertEquals(blockID, keyValueBlockIterator.nextBlock().getLocalID());
 
-      keyValueBlockIterator.seekToLast();
-      assertTrue(keyValueBlockIterator.hasNext());
-      assertEquals(blockID, keyValueBlockIterator.nextBlock().getLocalID());
-
       keyValueBlockIterator.seekToFirst();
       blockID = 0L;
       assertEquals(blockID++, keyValueBlockIterator.nextBlock().getLocalID());
@@ -206,9 +210,11 @@ public class TestKeyValueBlockIterator {
     createContainerWithBlocks(containerId, normalBlocks, deletedBlocks);
     String containerPath = new File(containerData.getMetadataPath())
         .getParent();
+    byte[] prefixKey = DBKey.getDeletingKey(containerId);
+    MetadataKeyFilters.KeyPrefixFilter filter = new MetadataKeyFilters.KeyPrefixFilter()
+        .addFilter(prefixKey);
     try(KeyValueBlockIterator keyValueBlockIterator = new KeyValueBlockIterator(
-        containerId, new File(containerPath), MetadataKeyFilters
-        .getDeletingKeyFilter())) {
+        containerId, new File(containerPath), filter)) {
 
       int counter = 5;
       while (keyValueBlockIterator.hasNext()) {
@@ -251,10 +257,11 @@ public class TestKeyValueBlockIterator {
         (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(),
         UUID.randomUUID().toString());
     container = new KeyValueContainer(containerData, conf);
-    container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(), UUID
-        .randomUUID().toString());
-    try(ReferenceCountedDB metadataStore = BlockUtils.getDB(containerData,
-        conf)) {
+    container.create(dbManager, volumeSet,
+        new RoundRobinVolumeChoosingPolicy(),
+        scmID);
+    String category = containerData.getCategoryInDB();
+    try(ReferenceCountedDB metadataStore = DBManager.getDB(containerData.getDbPath())) {
 
       List<ContainerProtos.ChunkInfo> chunkList = new ArrayList<>();
       ChunkInfo info = new ChunkInfo("chunkfile", 0, 1024);
@@ -264,18 +271,23 @@ public class TestKeyValueBlockIterator {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
-        metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
-            blockData
-            .getProtoBufMessage().toByteArray());
+        byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
+        metadataStore.getStore().put(
+            category,
+            blockKey,
+            blockData.getProtoBufMessage().toByteArray());
       }
 
       for (int i = normalBlocks; i < deletedBlocks; i++) {
         BlockID blockID = new BlockID(containerId, i);
         BlockData blockData = new BlockData(blockID);
         blockData.setChunks(chunkList);
-        metadataStore.getStore().put(StringUtils.string2Bytes(OzoneConsts
-            .DELETING_KEY_PREFIX + blockID.getLocalID()), blockData
-            .getProtoBufMessage().toByteArray());
+        byte[] deletingKey = DBKey.getDeletingKey(
+            blockID.getContainerID(), blockID.getLocalID());
+        metadataStore.getStore().put(
+            category,
+            deletingKey,
+            blockData.getProtoBufMessage().toByteArray());
       }
     }
   }

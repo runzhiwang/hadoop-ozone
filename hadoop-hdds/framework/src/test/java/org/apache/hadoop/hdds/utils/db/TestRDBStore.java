@@ -102,14 +102,14 @@ public class TestRDBStore {
   }
 
   @Test
-  public void compactDB() throws Exception {
+  public void compactRange() throws Exception {
     try (RDBStore newStore =
              new RDBStore(folder.newFolder(), options, configSet)) {
       Assert.assertNotNull("DB Store cannot be null", newStore);
       insertRandomData(newStore, 1);
       // This test does not assert anything if there is any error this test
       // will throw and fail.
-      newStore.compactDB();
+      newStore.compactRange();
     }
   }
 

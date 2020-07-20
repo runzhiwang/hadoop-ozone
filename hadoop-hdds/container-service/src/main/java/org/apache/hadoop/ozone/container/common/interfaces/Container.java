@@ -35,6 +35,7 @@ import org.apache.hadoop.hdfs.util.Canceler;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
 import org.apache.hadoop.hdfs.util.RwLock;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 
 /**
@@ -47,8 +48,10 @@ public interface Container<CONTAINERDATA extends ContainerData> extends RwLock {
    *
    * @throws StorageContainerException
    */
-  void create(VolumeSet volumeSet, VolumeChoosingPolicy volumeChoosingPolicy,
-              String scmId) throws StorageContainerException;
+  void create(
+      DBManager dbManager, VolumeSet volumeSet,
+      VolumeChoosingPolicy volumeChoosingPolicy,
+      String scmId) throws StorageContainerException;
 
   /**
    * Deletes the container.

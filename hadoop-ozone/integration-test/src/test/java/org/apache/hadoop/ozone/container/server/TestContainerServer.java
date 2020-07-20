@@ -33,6 +33,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
@@ -61,6 +62,7 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.test.GenericTestUtils;
 import org.apache.ratis.rpc.RpcType;
 import org.apache.ratis.util.function.CheckedBiConsumer;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -88,6 +90,7 @@ public class TestContainerServer {
       .getAbsolutePath() + File.separator;
   private static final OzoneConfiguration CONF = new OzoneConfiguration();
   private static CertificateClient caClient;
+  private DBManager dbManager;
 
   private GrpcReplicationService createReplicationService(
       ContainerController containerController) {
@@ -99,6 +102,13 @@ public class TestContainerServer {
   static public void setup() {
     CONF.set(HddsConfigKeys.HDDS_METADATA_DIR_NAME, TEST_DIR);
     caClient = new DNCertificateClient(new SecurityConfig(CONF));
+  }
+
+  @After
+  public void cleanDB() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
   }
 
   @Test
@@ -227,10 +237,10 @@ public class TestContainerServer {
       for (ContainerProtos.ContainerType containerType :
           ContainerProtos.ContainerType.values()) {
         handlers.put(containerType,
-            Handler.getHandlerForContainerType(containerType, conf,
+            Handler.getHandlerForContainerTypeWithDBManager(containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
                 containerSet, volumeSet, metrics,
-                TestHddsDispatcher.NO_OP_ICR_SENDER));
+                TestHddsDispatcher.NO_OP_ICR_SENDER, null));
       }
       HddsDispatcher dispatcher = new HddsDispatcher(
           conf, containerSet, volumeSet, handlers, context, metrics, null);

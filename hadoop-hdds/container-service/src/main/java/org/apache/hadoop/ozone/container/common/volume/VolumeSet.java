@@ -26,4 +26,5 @@ import java.util.List;
  */
 public interface VolumeSet extends ReadWriteLockable {
   List<HddsVolume> getVolumesList();
+  List<String> getVolumesPathList();
 }

@@ -31,6 +31,8 @@ import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -44,15 +46,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+import org.rocksdb.RocksDB;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -69,7 +70,7 @@ public class TestContainerReader {
   private HddsVolume hddsVolume;
   private ContainerSet containerSet;
   private ConfigurationSource conf;
-
+  private DBManager dbManager;
 
   private RoundRobinVolumeChoosingPolicy volumeChoosingPolicy;
   private UUID datanodeId;
@@ -95,6 +96,8 @@ public class TestContainerReader {
     Mockito.when(volumeChoosingPolicy.chooseVolume(anyList(), anyLong()))
         .thenReturn(hddsVolume);
 
+    dbManager = new DBManager(Arrays.asList(hddsVolume.getHddsRootDirPath()), scmId, conf);
+
     for (int i=0; i<2; i++) {
       KeyValueContainerData keyValueContainerData = new KeyValueContainerData(i,
           ChunkLayOutVersion.FILE_PER_BLOCK,
@@ -104,7 +107,8 @@ public class TestContainerReader {
       KeyValueContainer keyValueContainer =
           new KeyValueContainer(keyValueContainerData,
               conf);
-      keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+      keyValueContainer.create(
+          dbManager, volumeSet, volumeChoosingPolicy, scmId);
 
 
       List<Long> blkNames;
@@ -122,33 +126,52 @@ public class TestContainerReader {
 
   private void markBlocksForDelete(KeyValueContainer keyValueContainer,
       boolean setMetaData, List<Long> blockNames, int count) throws Exception {
-    try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
-        .getContainerData(), conf)) {
+    String category = keyValueContainer.getContainerData().getCategoryInDB();
+    try(ReferenceCountedDB metadataStore = DBManager.getDB(keyValueContainer
+        .getContainerData().getDbPath())) {
+      long containerID = keyValueContainer.getContainerData()
+          .getContainerID();
 
       for (int i = 0; i < count; i++) {
-        byte[] blkBytes = Longs.toByteArray(blockNames.get(i));
-        byte[] blkInfo = metadataStore.getStore().get(blkBytes);
+        byte[] blkBytes = DBKey.getBlockKey(containerID, blockNames.get(i));
+        byte[] blkInfo = metadataStore.getStore().get(
+            category, blkBytes);
 
         byte[] deletingKeyBytes =
-            StringUtils.string2Bytes(OzoneConsts.DELETING_KEY_PREFIX +
-                blockNames.get(i));
+            DBKey.getDeletingKey(containerID, blockNames.get(i));
 
-        metadataStore.getStore().delete(blkBytes);
-        metadataStore.getStore().put(deletingKeyBytes, blkInfo);
+        metadataStore.getStore().delete(
+            category, blkBytes);
+        metadataStore.getStore().put(
+            category, deletingKeyBytes, blkInfo);
       }
 
       if (setMetaData) {
-        metadataStore.getStore().put(DB_PENDING_DELETE_BLOCK_COUNT_KEY,
+        byte[] pendingDeleteCountKey =
+            DBKey.getPendingDeleteCountDBKey(containerID);
+        metadataStore.getStore().put(
+            category,
+            pendingDeleteCountKey,
             Longs.toByteArray(count));
-        long blkCount = Longs.fromByteArray(
-            metadataStore.getStore().get(DB_BLOCK_COUNT_KEY));
-        metadataStore.getStore().put(DB_BLOCK_COUNT_KEY,
-            Longs.toByteArray(blkCount - count));
-        long bytesUsed = Longs.fromByteArray(
-            metadataStore.getStore().get(DB_CONTAINER_BYTES_USED_KEY));
-        metadataStore.getStore().put(DB_CONTAINER_BYTES_USED_KEY,
-            Longs.toByteArray(bytesUsed - (count * blockLen)));
 
+        byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
+        long blkCount = Longs.fromByteArray(
+            metadataStore.getStore().get(
+                category,
+                blockCountKey));
+        metadataStore.getStore().put(
+            category,
+            blockCountKey,
+            Longs.toByteArray(blkCount - count));
+        byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
+        long bytesUsed = Longs.fromByteArray(
+            metadataStore.getStore().get(
+                category,
+                containerBytesUsedKey));
+        metadataStore.getStore().put(
+            category,
+            containerBytesUsedKey,
+            Longs.toByteArray(bytesUsed - (count * blockLen)));
       }
     }
 
@@ -159,9 +182,11 @@ public class TestContainerReader {
     long containerId = keyValueContainer.getContainerData().getContainerID();
 
     List<Long> blkNames = new ArrayList<>();
-    try(ReferenceCountedDB metadataStore = BlockUtils.getDB(keyValueContainer
-        .getContainerData(), conf)) {
+    try(ReferenceCountedDB metadataStore = DBManager.getDB(keyValueContainer
+        .getContainerData().getDbPath())) {
 
+      String category = keyValueContainer.getContainerData()
+          .getCategoryInDB();
       for (int i = 0; i < blockCount; i++) {
         // Creating BlockData
         BlockID blockID = new BlockID(containerId, i);
@@ -175,15 +200,23 @@ public class TestContainerReader {
         chunkList.add(info.getProtoBufMessage());
         blockData.setChunks(chunkList);
         blkNames.add(blockID.getLocalID());
-        metadataStore.getStore().put(Longs.toByteArray(blockID.getLocalID()),
-            blockData
-                .getProtoBufMessage().toByteArray());
+        byte[] blockKey = DBKey.getBlockKey(containerId, blockID.getLocalID());
+        metadataStore.getStore().put(
+            category,
+            blockKey,
+            blockData.getProtoBufMessage().toByteArray());
       }
 
       if (setMetaData) {
-        metadataStore.getStore().put(DB_BLOCK_COUNT_KEY,
+        byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
+        metadataStore.getStore().put(
+            category,
+            blockCountKey,
             Longs.toByteArray(blockCount));
-        metadataStore.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
+        byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerId);
+        metadataStore.getStore().put(
+            category,
+            containerBytesUsedKey,
             Longs.toByteArray(blockCount * blockLen));
       }
     }

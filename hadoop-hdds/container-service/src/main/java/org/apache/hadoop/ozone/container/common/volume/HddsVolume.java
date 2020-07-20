@@ -340,6 +340,10 @@ public class HddsVolume
     return hddsRootDir;
   }
 
+  public String getHddsRootDirPath() {
+    return hddsRootDir.getAbsolutePath();
+  }
+
   public StorageType getStorageType() {
     if(volumeInfo != null) {
       return volumeInfo.getStorageType();

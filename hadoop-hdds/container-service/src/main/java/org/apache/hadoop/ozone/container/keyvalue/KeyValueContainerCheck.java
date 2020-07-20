@@ -32,6 +32,8 @@ import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.ChunkUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
@@ -44,6 +46,7 @@ import java.nio.channels.FileChannel;
 import java.util.Arrays;
 
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -215,9 +218,7 @@ public class KeyValueContainerCheck {
     Preconditions.checkState(onDiskContainerData != null,
         "invoke loadContainerData prior to calling this function");
 
-    File metaDir = new File(metadataPath);
-    File dbFile = KeyValueContainerLocationUtil
-        .getContainerDBFile(metaDir, containerID);
+    File dbFile = onDiskContainerData.getDbFile();
 
     if (!dbFile.exists() || !dbFile.canRead()) {
       String dbFileErrorMsg = "Unable to access DB File [" + dbFile.toString()
@@ -226,12 +227,11 @@ public class KeyValueContainerCheck {
       throw new IOException(dbFileErrorMsg);
     }
 
-    onDiskContainerData.setDbFile(dbFile);
-
+    String category = onDiskContainerData.getCategoryInDB();
     ChunkLayOutVersion layout = onDiskContainerData.getLayOutVersion();
 
     try(ReferenceCountedDB db =
-            BlockUtils.getDB(onDiskContainerData, checkConfig);
+            DBManager.getDB(onDiskContainerData.getDbPath());
         KeyValueBlockIterator kvIter = new KeyValueBlockIterator(containerID,
             new File(onDiskContainerData.getContainerPath()))) {
 
@@ -243,8 +243,11 @@ public class KeyValueContainerCheck {
 
           if (!chunkFile.exists()) {
             // concurrent mutation in Block DB? lookup the block again.
+            byte[] key = DBKey.getBlockKey(
+                containerID, block.getBlockID().getLocalID());
             byte[] bdata = db.getStore().get(
-                Longs.toByteArray(block.getBlockID().getLocalID()));
+                category,
+                key);
             if (bdata != null) {
               throw new IOException("Missing chunk file "
                   + chunkFile.getAbsolutePath());

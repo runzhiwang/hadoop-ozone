@@ -113,8 +113,9 @@ public class BenchMarkRocksDbStore {
   @Benchmark
   public void test(Blackhole bh) throws IOException {
     long x = org.apache.commons.lang3.RandomUtils.nextLong(0L, MAX_KEYS);
-    store.put(Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
-    bh.consume(
-        store.get(Long.toHexString(x).getBytes(Charset.forName("UTF-8"))));
+    store.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        Long.toHexString(x).getBytes(Charset.forName("UTF-8")), data);
+    bh.consume(store.get(RocksDB.DEFAULT_COLUMN_FAMILY,
+        Long.toHexString(x).getBytes(Charset.forName("UTF-8"))));
   }
 }

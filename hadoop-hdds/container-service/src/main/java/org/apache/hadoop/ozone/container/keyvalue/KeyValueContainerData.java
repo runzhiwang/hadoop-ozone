@@ -110,14 +110,23 @@ public class KeyValueContainerData extends ContainerData {
     this.deleteTransactionId = 0;
   }
 
+  public KeyValueContainerData(long id, ChunkLayOutVersion layOutVersion,
+      long size, String dbPath, String categoryInDB, String originPipelineId,
+      String originNodeId) {
+    super(ContainerProtos.ContainerType.KeyValueContainer, id, layOutVersion,
+        size, originPipelineId, originNodeId);
+    this.dbPath = dbPath;
+    this.categoryInDB = categoryInDB;
+    this.numPendingDeletionBlocks = new AtomicInteger(0);
+    this.deleteTransactionId = 0;
+  }
+
 
   /**
-   * Sets Container dbFile. This should be called only during creation of
+   * Sets Container dbPath. This should be called only during creation of
    * KeyValue container.
-   * @param containerDbFile
+   * @param dbPath
    */
-  public void setDbFile(File containerDbFile) {
-    dbFile = containerDbFile;
   public void setDbPath(String dbPath) {
     this.dbPath = dbPath;
   }
@@ -135,7 +144,9 @@ public class KeyValueContainerData extends ContainerData {
    * @return dbFile
    */
   public File getDbFile() {
-    return dbFile;
+    return new File(dbPath);
+  }
+
   public String getDbPath() {
     return dbPath;
   }
@@ -275,21 +286,31 @@ public class KeyValueContainerData extends ContainerData {
 
   /**
    * Update DB counters related to block metadata.
+   * @param containerID - container id
    * @param db - Reference to container DB.
    * @param batchOperation - Batch Operation to batch DB operations.
    * @param deletedBlockCount - Number of blocks deleted.
    * @throws IOException
    */
-  public void updateAndCommitDBCounters(
+  public void updateAndCommitDBCounters(long containerID,
       ReferenceCountedDB db, BatchOperation batchOperation,
       int deletedBlockCount) throws IOException {
     // Set Bytes used and block count key.
-    batchOperation.put(DB_CONTAINER_BYTES_USED_KEY,
+    byte[] containerBytesUsedKey = DBKey.getByteUsedDBKey(containerID);
+    batchOperation.put(getCategoryInDB(),
+        containerBytesUsedKey,
         Longs.toByteArray(getBytesUsed()));
-    batchOperation.put(DB_BLOCK_COUNT_KEY, Longs.toByteArray(
-        getKeyCount() - deletedBlockCount));
-    batchOperation.put(DB_PENDING_DELETE_BLOCK_COUNT_KEY, Longs.toByteArray(
-        getNumPendingDeletionBlocks() - deletedBlockCount));
+
+    byte[] blockCountKey = DBKey.getBlockCountDBKey(containerID);
+    batchOperation.put(getCategoryInDB(),
+        blockCountKey,
+        Longs.toByteArray(getKeyCount() - deletedBlockCount));
+
+    byte[] pendingDeleteCountKey =
+        DBKey.getPendingDeleteCountDBKey(containerID);
+    batchOperation.put(getCategoryInDB(),
+        pendingDeleteCountKey,
+        Longs.toByteArray(getNumPendingDeletionBlocks() - deletedBlockCount));
     db.getStore().writeBatch(batchOperation);
   }
 

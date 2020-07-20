@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.recon.scm;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,8 @@ import static org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProt
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_DB_CACHE_SIZE_DEFAULT;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_DB_CACHE_SIZE_MB;
 import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_SCM_NODE_DB;
+
+import org.rocksdb.RocksDB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,7 +92,9 @@ public class ReconNodeManager extends SCMNodeManager {
   private void loadExistingNodes() {
     try {
       List<Map.Entry<byte[], byte[]>> range = nodeStore
-          .getSequentialRangeKVs(null, Integer.MAX_VALUE, null);
+          .getSequentialRangeKVs(
+              RocksDB.DEFAULT_COLUMN_FAMILY,
+              null, Integer.MAX_VALUE, null);
       int nodeCount = 0;
       for (Map.Entry<byte[], byte[]> entry : range) {
         DatanodeDetails datanodeDetails = DatanodeDetails.getFromProtoBuf(
@@ -112,7 +117,8 @@ public class ReconNodeManager extends SCMNodeManager {
         StringUtils.string2Bytes(datanodeDetails.getUuidString());
     byte[] nodeDetailsBytes =
         datanodeDetails.getProtoBufMessage().toByteArray();
-    nodeStore.put(nodeIdBytes, nodeDetailsBytes);
+    nodeStore.put(RocksDB.DEFAULT_COLUMN_FAMILY,
+        nodeIdBytes, nodeDetailsBytes);
     LOG.info("Adding new node {} to Node DB.", datanodeDetails.getUuid());
   }
 

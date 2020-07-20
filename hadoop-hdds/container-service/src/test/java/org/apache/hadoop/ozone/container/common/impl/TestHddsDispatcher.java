@@ -44,6 +44,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -53,7 +54,9 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.test.GenericTestUtils;
 
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -93,6 +96,15 @@ public class TestHddsDispatcher {
     return ChunkLayoutTestInfo.chunkLayoutParameters();
   }
 
+  private DBManager dbManager;
+
+  @After
+  public void cleanDB() throws IOException {
+    if (dbManager != null) {
+      dbManager.clean();
+    }
+  }
+
   @Test
   public void testContainerCloseActionWhenFull() throws IOException {
     String testDir = GenericTestUtils.getTempPath(
@@ -104,6 +116,7 @@ public class TestHddsDispatcher {
 
     try {
       UUID scmId = UUID.randomUUID();
+      dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId.toString(), conf);
       ContainerSet containerSet = new ContainerSet();
 
       DatanodeStateMachine stateMachine = Mockito.mock(
@@ -116,16 +129,18 @@ public class TestHddsDispatcher {
           (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(),
           dd.getUuidString());
       Container container = new KeyValueContainer(containerData, conf);
-      container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
-          scmId.toString());
+      container.create(dbManager, volumeSet,
+          new RoundRobinVolumeChoosingPolicy(), scmId.toString());
       containerSet.addContainer(container);
       ContainerMetrics metrics = ContainerMetrics.create(conf);
       Map<ContainerType, Handler> handlers = Maps.newHashMap();
       for (ContainerType containerType : ContainerType.values()) {
         handlers.put(containerType,
-            Handler.getHandlerForContainerType(containerType, conf,
+            Handler.getHandlerForContainerTypeWithDBManager(
+                containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
-                containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+                containerSet, volumeSet, metrics, NO_OP_ICR_SENDER,
+                dbManager));
       }
       HddsDispatcher hddsDispatcher = new HddsDispatcher(
           conf, containerSet, volumeSet, handlers, context, metrics, null);
@@ -275,6 +290,7 @@ public class TestHddsDispatcher {
       OzoneConfiguration conf) throws IOException {
     ContainerSet containerSet = new ContainerSet();
     VolumeSet volumeSet = new MutableVolumeSet(dd.getUuidString(), conf);
+    dbManager = new DBManager(volumeSet.getVolumesPathList(), scmId.toString(), conf);
     DatanodeStateMachine stateMachine = Mockito.mock(
         DatanodeStateMachine.class);
     StateContext context = Mockito.mock(StateContext.class);
@@ -284,9 +300,9 @@ public class TestHddsDispatcher {
     Map<ContainerType, Handler> handlers = Maps.newHashMap();
     for (ContainerType containerType : ContainerType.values()) {
       handlers.put(containerType,
-          Handler.getHandlerForContainerType(containerType, conf,
+          Handler.getHandlerForContainerTypeWithDBManager(containerType, conf,
               context.getParent().getDatanodeDetails().getUuidString(),
-              containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+              containerSet, volumeSet, metrics, NO_OP_ICR_SENDER, dbManager));
     }
 
     HddsDispatcher hddsDispatcher = new HddsDispatcher(

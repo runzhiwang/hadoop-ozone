@@ -60,6 +60,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext.WriteChunkStage;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -113,9 +114,12 @@ public class KeyValueHandler extends Handler {
   // A lock that is held during container creation.
   private final AutoCloseableLock containerCreationLock;
 
+  private DBManager dbManager;
+
   public KeyValueHandler(ConfigurationSource config, String datanodeId,
       ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
-      Consumer<ContainerReplicaProto> icrSender) {
+      Consumer<ContainerReplicaProto> icrSender, DBManager dbManager)
+      throws IOException {
     super(config, datanodeId, contSet, volSet, metrics, icrSender);
     containerType = ContainerType.KeyValueContainer;
     blockManager = new BlockManagerImpl(config);
@@ -135,6 +139,15 @@ public class KeyValueHandler extends Handler {
     containerCreationLock = new AutoCloseableLock(new ReentrantLock(true));
     byteBufferToByteString =
         ByteStringConversion.createByteBufferConversion(conf);
+
+    this.dbManager = dbManager;
+  }
+
+  @Override
+  public void initDBManager(String scmID) throws IOException {
+    if (dbManager != null && dbManager.getScmID() == null) {
+      dbManager.initDBManager(scmID);
+    }
   }
 
   @VisibleForTesting
@@ -144,6 +157,12 @@ public class KeyValueHandler extends Handler {
 
   @Override
   public void stop() {
+    if (dbManager != null) {
+      try {
+        dbManager.close();
+      } catch (IOException e) {
+      }
+    }
   }
 
   @Override
@@ -247,7 +266,7 @@ public class KeyValueHandler extends Handler {
     boolean created = false;
     try (AutoCloseableLock l = containerCreationLock.acquire()) {
       if (containerSet.getContainer(containerID) == null) {
-        newContainer.create(volumeSet, volumeChoosingPolicy, scmID);
+        newContainer.create(dbManager, volumeSet, volumeChoosingPolicy, scmID);
         created = containerSet.addContainer(newContainer);
       } else {
         // The create container request for an already existing container can

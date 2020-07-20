@@ -37,6 +37,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
@@ -102,6 +103,8 @@ public class TestContainerPersistence {
   private static VolumeChoosingPolicy volumeChoosingPolicy;
   private static BlockManager blockManager;
   private static ChunkManager chunkManager;
+  private static DBManager dbManager;
+
   @Rule
   public ExpectedException exception = ExpectedException.none();
   /**
@@ -122,7 +125,7 @@ public class TestContainerPersistence {
   }
 
   @BeforeClass
-  public static void init() {
+  public static void init() throws IOException {
     conf = new OzoneConfiguration();
     hddsPath = GenericTestUtils
         .getTempPath(TestContainerPersistence.class.getSimpleName());
@@ -146,11 +149,13 @@ public class TestContainerPersistence {
       StorageLocation location = StorageLocation.parse(dir);
       FileUtils.forceMkdir(new File(location.getNormalizedUri()));
     }
+    dbManager = new DBManager(SCM_ID, conf);
   }
 
   @After
   public void cleanupDir() throws IOException {
     // Clean up SCM metadata
+    dbManager.clean();
     log.info("Deleting {}", hddsPath);
     FileUtils.deleteDirectory(new File(hddsPath));
 
@@ -181,7 +186,8 @@ public class TestContainerPersistence {
     data.addMetadata("VOLUME", "shire");
     data.addMetadata("owner)", "bilbo");
     KeyValueContainer container = new KeyValueContainer(data, conf);
-    container.create(volumeSet, volumeChoosingPolicy, SCM_ID);
+    container.create(
+        dbManager, volumeSet, volumeChoosingPolicy, SCM_ID);
     commitBytesBefore = container.getContainerData()
         .getVolume().getCommittedBytes();
     cSet.addContainer(container);
@@ -214,7 +220,7 @@ public class TestContainerPersistence {
 
     ReferenceCountedDB store = null;
     try {
-      store = BlockUtils.getDB(kvData, conf);
+      store = DBManager.getDB(kvData.getDbPath());
       Assert.assertNotNull(store);
     } finally {
       if (store != null) {
@@ -258,8 +264,10 @@ public class TestContainerPersistence {
         .containsKey(testContainerID1));
 
     // Adding block to a deleted container should fail.
-    exception.expect(StorageContainerException.class);
-    exception.expectMessage("Error opening DB.");
+    exception.expect(IOException.class);
+    exception.expectMessage("Container:" +
+        container1.getContainerData().getContainerID() +
+        " does not exist");
     BlockID blockID1 = ContainerTestHelper.getTestBlockID(testContainerID1);
     BlockData someKey1 = new BlockData(blockID1);
     someKey1.setChunks(new LinkedList<ContainerProtos.ChunkInfo>());

@@ -280,7 +280,7 @@ public class TestKeyValueHandler {
       KeyValueHandler keyValueHandler = new KeyValueHandler(conf,
           context.getParent().getDatanodeDetails().getUuidString(), cset,
           volumeSet, metrics, c -> {
-      });
+      }, null);
       assertEquals("org.apache.hadoop.ozone.container.common" +
           ".volume.RoundRobinVolumeChoosingPolicy",
           keyValueHandler.getVolumeChoosingPolicyForTesting()
@@ -292,7 +292,7 @@ public class TestKeyValueHandler {
       try {
         new KeyValueHandler(conf,
             context.getParent().getDatanodeDetails().getUuidString(),
-            cset, volumeSet, metrics, c->{});
+            cset, volumeSet, metrics, c->{}, null);
       } catch (RuntimeException ex) {
         GenericTestUtils.assertExceptionContains("class org.apache.hadoop" +
             ".ozone.container.common.impl.HddsDispatcher not org.apache" +
