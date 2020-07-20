@@ -117,7 +117,7 @@ public class KeyValueContainerData extends ContainerData {
         size, originPipelineId, originNodeId);
     this.dbPath = dbPath;
     this.categoryInDB = categoryInDB;
-    this.numPendingDeletionBlocks = new AtomicInteger(0);
+    this.numPendingDeletionBlocks = new AtomicLong(0);
     this.deleteTransactionId = 0;
   }
 
