@@ -25,13 +25,17 @@ import java.io.IOException;
 import java.util.Collections;
 
 import com.google.common.primitives.Longs;
+import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .ContainerDataProto;
 import org.apache.hadoop.hdds.utils.BatchOperation;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.rocksdb.RocksDB;
 import org.yaml.snakeyaml.nodes.Tag;
 
 
@@ -41,13 +45,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.Math.max;
-import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE_ROCKSDB;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_BLOCK_COUNT_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_CONTAINER_BYTES_USED_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
-import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
-import static org.apache.hadoop.ozone.OzoneConsts.DB_PENDING_DELETE_BLOCK_COUNT_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.*;
 
 /**
  * This class represents the KeyValueContainer metadata, which is the
@@ -68,8 +66,8 @@ public class KeyValueContainerData extends ContainerData {
   //Type of DB used to store key to chunks mapping
   private String containerDBType = CONTAINER_DB_TYPE_ROCKSDB;
 
-  private File dbFile = null;
-
+  private String dbPath;
+  private String categoryInDB;
   /**
    * Number of pending deletion blocks in KeyValueContainer.
    */
@@ -86,6 +84,8 @@ public class KeyValueContainerData extends ContainerData {
     KV_YAML_FIELDS.add(METADATA_PATH);
     KV_YAML_FIELDS.add(CHUNKS_PATH);
     KV_YAML_FIELDS.add(CONTAINER_DB_TYPE);
+    KV_YAML_FIELDS.add(DB_PATH);
+    KV_YAML_FIELDS.add(CATEGORY_IN_DB);
   }
 
   /**
@@ -118,6 +118,16 @@ public class KeyValueContainerData extends ContainerData {
    */
   public void setDbFile(File containerDbFile) {
     dbFile = containerDbFile;
+  public void setDbPath(String dbPath) {
+    this.dbPath = dbPath;
+  }
+
+  public void setCategoryInDB(String categoryInDB) {
+    this.categoryInDB = categoryInDB;
+  }
+
+  public void setCategoryInDB(byte[] categoryInDB) {
+    this.categoryInDB = StringUtils.bytes2String(categoryInDB);
   }
 
   /**
@@ -126,6 +136,12 @@ public class KeyValueContainerData extends ContainerData {
    */
   public File getDbFile() {
     return dbFile;
+  public String getDbPath() {
+    return dbPath;
+  }
+
+  public String getCategoryInDB() {
+    return categoryInDB;
   }
 
   /**

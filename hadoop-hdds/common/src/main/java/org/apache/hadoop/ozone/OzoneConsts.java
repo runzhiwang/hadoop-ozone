@@ -257,6 +257,8 @@ public final class OzoneConsts {
   public static final String DATA_SCAN_TIMESTAMP = "dataScanTimestamp";
   public static final String ORIGIN_PIPELINE_ID = "originPipelineId";
   public static final String ORIGIN_NODE_ID = "originNodeId";
+  public static final String DB_PATH = "dbPath";
+  public static final String CATEGORY_IN_DB = "categoryInDB";
 
   // Supported store types.
   public static final String OZONE = "ozone";
