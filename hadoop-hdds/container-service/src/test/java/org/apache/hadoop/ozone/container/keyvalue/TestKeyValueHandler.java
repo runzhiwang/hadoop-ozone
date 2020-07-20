@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.container.keyvalue;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.UUID;
@@ -44,6 +45,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
@@ -353,12 +355,15 @@ public class TestKeyValueHandler {
     final String testDir = GenericTestUtils.getTempPath(
         TestKeyValueHandler.class.getSimpleName() +
             "-" + UUID.randomUUID().toString());
+    DBManager dbManager = null;
     try {
       final long containerID = 1L;
       final ConfigurationSource conf = new OzoneConfiguration();
       final ContainerSet containerSet = new ContainerSet();
       final VolumeSet volumeSet = Mockito.mock(VolumeSet.class);
 
+      HddsVolume volume =
+          new HddsVolume.Builder(testDir).conf(conf).build();
       Mockito.when(volumeSet.getVolumesList())
           .thenReturn(Collections.singletonList(
               new HddsVolume.Builder(testDir).conf(conf).build()));
@@ -369,10 +374,12 @@ public class TestKeyValueHandler {
 
       final AtomicInteger icrReceived = new AtomicInteger(0);
 
+      String scmID = UUID.randomUUID().toString();
+      dbManager = new DBManager(Arrays.asList(volume.getHddsRootDirPath()), scmID, conf);
       final KeyValueHandler kvHandler = new KeyValueHandler(conf,
           UUID.randomUUID().toString(), containerSet, volumeSet, metrics,
-          c -> icrReceived.incrementAndGet());
-      kvHandler.setScmID(UUID.randomUUID().toString());
+          c -> icrReceived.incrementAndGet(), dbManager);
+      kvHandler.setScmID(scmID);
 
       final ContainerCommandRequestProto createContainer =
           ContainerCommandRequestProto.newBuilder()
@@ -394,6 +401,9 @@ public class TestKeyValueHandler {
       Assert.assertEquals(2, icrReceived.get());
       Assert.assertNull(containerSet.getContainer(containerID));
     } finally {
+      if (dbManager != null) {
+        dbManager.clean();
+      }
       FileUtils.deleteDirectory(new File(testDir));
     }
   }

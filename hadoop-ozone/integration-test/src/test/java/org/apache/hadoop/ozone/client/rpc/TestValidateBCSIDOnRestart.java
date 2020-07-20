@@ -41,6 +41,8 @@ import org.apache.hadoop.ozone.container.TestHelper;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.ContainerStateMachine;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
+import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
@@ -229,15 +231,13 @@ public class TestValidateBCSIDOnRestart {
             .getContainerData();
     Assert.assertTrue(containerData instanceof KeyValueContainerData);
     keyValueContainerData = (KeyValueContainerData) containerData;
-    ReferenceCountedDB db = BlockUtils.
-            getDB(keyValueContainerData, conf);
-    byte[] blockCommitSequenceIdKey =
-            StringUtils.
-                    string2Bytes(OzoneConsts.BLOCK_COMMIT_SEQUENCE_ID_PREFIX);
-
+    ReferenceCountedDB db = DBManager.
+        getDB(keyValueContainerData.getDbPath());
+    byte[] blockCommitSequenceIdKey = DBKey.getBcsIdDBKey(containerID);
     // modify the bcsid for the container in the ROCKS DB thereby inducing
     // corruption
-    db.getStore().put(blockCommitSequenceIdKey, Longs.toByteArray(0));
+    db.getStore().put(keyValueContainerData.getCategoryInDB(),
+        blockCommitSequenceIdKey, Longs.toByteArray(0));
     db.decrementReference();
     // after the restart, there will be a mismatch in BCSID of what is recorded
     // in the and what is there in RockSDB and hence the container would be
