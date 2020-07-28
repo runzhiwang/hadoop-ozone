@@ -157,6 +157,18 @@ public interface MetadataStore extends Closeable{
       byte[] startKey, int count, MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException;
 
+  void exportKVs(
+      String category, byte[] startKey, String exportPath,
+      MetadataKeyFilters.MetadataKeyFilter... filters) throws IOException;
+
+  void exportKVs(
+      byte[] category, byte[] startKey, String exportPath,
+      MetadataKeyFilters.MetadataKeyFilter... filters) throws IOException;
+
+  void importKVs(String category, String importPath) throws IOException;
+
+  void importKVs(byte[] category, String importPath) throws IOException;
+
   /**
    * A batch of PUT, DELETE operations handled as a single atomic write.
    *

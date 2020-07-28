@@ -31,8 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.management.ObjectName;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -308,6 +307,161 @@ public class RocksDBStore implements MetadataStore {
       throws IOException, IllegalArgumentException {
     return getSequentialRangeKVs(StringUtils.bytes2String(category),
         startKey, count, filters);
+  }
+
+  static String DELIM = " ==> ";
+
+  @Override
+  public void exportKVs(
+      byte[] category, byte[] startKey, String exportPath,
+      MetadataKeyFilters.MetadataKeyFilter... filters) throws IOException {
+    exportKVs(
+        StringUtils.bytes2String(category), startKey, exportPath, filters);
+  }
+
+  private String toHexString(byte[] bytes) {
+    StringBuilder sb = new StringBuilder(bytes.length * 2);
+    for (byte b : bytes) {
+      sb.append(String.format("%02x", new Integer(b & 0xff)));
+    }
+
+    return sb.toString();
+  }
+
+  private byte[] fromHexString(String hexString) {
+    if (null == hexString || "".equals(hexString.trim())) {
+      return new byte[0];
+    }
+
+    byte[] bytes = new byte[hexString.length() / 2];
+    String hex;
+    for (int i = 0; i < hexString.length() / 2; i++) {
+      hex = hexString.substring(i * 2, i * 2 + 2);
+      bytes[i] = (byte) Integer.parseInt(hex, 16);
+    }
+
+    return bytes;
+  }
+
+  @Override
+  public void exportKVs(
+      String category, byte[] startKey, String exportPath,
+      MetadataKeyFilters.MetadataKeyFilter... filters) throws IOException {
+    long start = System.currentTimeMillis();
+    int count = 0;
+
+    RocksIterator it = null;
+    FileWriter fileWriter = null;
+    try {
+      File exportFile = new File(exportPath);
+      if (!exportFile.exists()) {
+        exportFile.createNewFile();
+      }
+      fileWriter = new FileWriter(exportFile.getAbsolutePath());
+
+      it = db.newIterator(getColumnFamilyHandle(category));
+      if (startKey == null) {
+        it.seekToFirst();
+      } else {
+        if(get(category, startKey) == null) {
+          // Key not found, return empty list
+          throw new IOException("Not found key in category:" + category);
+        }
+        it.seek(startKey);
+      }
+
+      while(it.isValid()) {
+        byte[] currentKey = it.key();
+        byte[] currentValue = it.value();
+
+        it.prev();
+        final byte[] prevKey = it.isValid() ? it.key() : null;
+
+        it.seek(currentKey);
+        it.next();
+        final byte[] nextKey = it.isValid() ? it.key() : null;
+
+        if (filters == null || Arrays.asList(filters).stream()
+            .allMatch(entry -> entry.filterKey(prevKey,
+                currentKey, nextKey))) {
+            fileWriter.write(
+                toHexString(currentKey) + DELIM +
+                    toHexString(currentValue) + "\n");
+            count ++;
+        }
+      }
+
+      fileWriter.flush();
+    } finally {
+      if (it != null) {
+        it.close();
+      }
+
+      if (fileWriter != null) {
+        fileWriter.close();
+      }
+
+      long end = System.currentTimeMillis();
+      long timeConsumed = end - start;
+      if (LOG.isDebugEnabled()) {
+        if (filters != null) {
+          for (MetadataKeyFilters.MetadataKeyFilter filter : filters) {
+            int scanned = filter.getKeysScannedNum();
+            int hinted = filter.getKeysHintedNum();
+            if (scanned > 0 || hinted > 0) {
+              LOG.debug(
+                  "exportKVs ({}) numOfKeysScanned={}, numOfKeysHinted={}",
+                  filter.getClass().getSimpleName(), filter.getKeysScannedNum(),
+                  filter.getKeysHintedNum());
+            }
+          }
+        }
+        LOG.debug("Time consumed for exportKVs() is {}ms,"
+            + " entry count is {}.", timeConsumed, count);
+      }
+    }
+  }
+
+  @Override
+  public void importKVs(byte[] category, String importPath) throws IOException {
+    importKVs(StringUtils.bytes2String(category), importPath);
+  }
+
+  @Override
+  public void importKVs(String category, String importPath) throws IOException {
+    FileReader fr = null;
+    BufferedReader br = null;
+    try {
+      File importFile = new File(importPath);
+      if (!importFile.exists()) {
+        throw new IOException("importFile:" + importPath + " does not exist");
+      }
+
+      fr = new FileReader(importPath);
+      br = new BufferedReader(fr);
+      String line;
+
+      while ((line = br.readLine()) != null) {
+        int index = line.indexOf(DELIM);
+        if (index == -1) {
+          throw new IOException("index of " + DELIM + " is -1");
+        }
+
+        String key = line.substring(0, index);
+        String value = line.substring(index + DELIM.length());
+        db.put(getColumnFamilyHandle(category), fromHexString(key), fromHexString(value));
+      }
+    } catch (Exception e) {
+      throw new IOException("importKVs failed", e);
+    } finally {
+      if (br != null) {
+        br.close();
+      }
+
+      if (fr != null) {
+        fr.close();
+      }
+    }
   }
 
   private List<Map.Entry<byte[], byte[]>> getRangeKVs(

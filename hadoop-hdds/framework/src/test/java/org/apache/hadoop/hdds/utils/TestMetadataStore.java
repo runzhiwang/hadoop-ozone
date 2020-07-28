@@ -16,8 +16,7 @@
  */
 package org.apache.hadoop.hdds.utils;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -137,7 +136,7 @@ public class TestMetadataStore {
     }
 
     for (int i = 0; i < 10; i++) {
-      store.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a" + i), getBytes("a-value" + i));
+      dbStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a" + i), getBytes("a-value" + i));
     }
 
     metaStoreIterator = dbStore.iterator(RocksDB.DEFAULT_COLUMN_FAMILY);
@@ -438,6 +437,130 @@ public class TestMetadataStore {
         MAX_GETRANGE_LENGTH, suffixFilter);
     assertEquals(1, result.size());
     assertEquals("a2", StringUtils.bytes2String(result.get(0).getKey()));
+  }
+
+  private void testExportKVs(byte[] startKey) throws IOException {
+    OzoneConfiguration conf = new OzoneConfiguration();
+
+    File dbDir = GenericTestUtils.getRandomizedTestDir();
+    MetadataStore dbStore = MetadataStoreBuilder.newBuilder()
+        .setConf(conf)
+        .setCreateIfMissing(true)
+        .setDbFile(dbDir)
+        .setDBType("RocksDB")
+        .build();
+
+    for (int i = 0; i < 10; i++) {
+      dbStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("a" + i), getBytes("a-value" + i));
+      dbStore.put(RocksDB.DEFAULT_COLUMN_FAMILY, getBytes("b" + i), getBytes("b-value" + i));
+    }
+
+    MetadataKeyFilter filter = new KeyPrefixFilter().addFilter("b");
+    String exportPath = dbDir.getAbsolutePath() + "/export";
+    dbStore.exportKVs(RocksDB.DEFAULT_COLUMN_FAMILY,   null, exportPath, filter);
+    File exportFile = new File(exportPath);
+    FileReader fr = new FileReader(exportFile);
+    BufferedReader br = new BufferedReader(fr);
+    String line;
+
+    int count = 0;
+    while ((line = br.readLine()) != null) {
+      int index = line.indexOf(RocksDBStore.DELIM);
+      if (index == -1) {
+        throw new IOException("index of " + RocksDBStore.DELIM + " is -1");
+      }
+
+      String key = line.substring(0, index);
+      String value = line.substring(index + RocksDBStore.DELIM.length());
+      assertEquals(key, "b" + count);
+      assertEquals(value, "b-value" + count);
+      count ++;
+    }
+
+    assertEquals(count, 10);
+
+    dbStore.close();
+    dbStore.destroy();
+    FileUtils.deleteDirectory(dbDir);
+  }
+
+  @Test
+  public void testExportKVsWithStartKey() throws IOException {
+    testExportKVs("b0".getBytes());
+  }
+
+  @Test
+  public void testExportKVsWithoutStartKey() throws IOException {
+    testExportKVs(null);
+  }
+
+  @Test
+  public void testImportKVs() throws IOException {
+    OzoneConfiguration conf = new OzoneConfiguration();
+
+    File dbDir = GenericTestUtils.getRandomizedTestDir();
+    MetadataStore dbStore = MetadataStoreBuilder.newBuilder()
+        .setConf(conf)
+        .setCreateIfMissing(true)
+        .setDbFile(dbDir)
+        .setDBType("RocksDB")
+        .build();
+
+    //As database is empty, check whether iterator is working as expected or
+    // not.
+    MetaStoreIterator<MetadataStore.KeyValue> metaStoreIterator =
+        dbStore.iterator(RocksDB.DEFAULT_COLUMN_FAMILY);
+    assertFalse(metaStoreIterator.hasNext());
+    try {
+      metaStoreIterator.next();
+      fail("testIterator failed");
+    } catch (NoSuchElementException ex) {
+      GenericTestUtils.assertExceptionContains("Store has no more elements",
+          ex);
+    }
+
+    String importPath = dbDir.getAbsolutePath() + "/import";
+    File importFile = new File(importPath);
+    if (!importFile.exists()) {
+      importFile.createNewFile();
+    }
+    FileWriter fileWriter = new FileWriter(importPath);
+
+    for (int i = 0; i < 10; i++) {
+      fileWriter.write(
+          ("b" + i) + RocksDBStore.DELIM + ("b-value" + i) + "\n");
+    }
+
+    fileWriter.close();
+
+    dbStore.importKVs(RocksDB.DEFAULT_COLUMN_FAMILY, importPath);
+
+    metaStoreIterator = dbStore.iterator(RocksDB.DEFAULT_COLUMN_FAMILY);
+
+    int i = 0;
+    while (metaStoreIterator.hasNext()) {
+      MetadataStore.KeyValue val = metaStoreIterator.next();
+      assertEquals("b" + i, getString(val.getKey()));
+      assertEquals("b-value" + i, getString(val.getValue()));
+      i++;
+    }
+
+    assertEquals(i, 10);
+
+    // As we have iterated all the keys in database, hasNext should return
+    // false and next() should throw NoSuchElement exception.
+
+    assertFalse(metaStoreIterator.hasNext());
+    try {
+      metaStoreIterator.next();
+      fail("testIterator failed");
+    } catch (NoSuchElementException ex) {
+      GenericTestUtils.assertExceptionContains("Store has no more elements",
+          ex);
+    }
+    dbStore.close();
+    dbStore.destroy();
+    FileUtils.deleteDirectory(dbDir);
   }
 
   @Test

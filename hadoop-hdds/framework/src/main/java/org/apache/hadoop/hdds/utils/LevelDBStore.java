@@ -489,6 +489,31 @@ public class LevelDBStore implements MetadataStore {
 //        "supported in LevelDBStore");
   }
 
+  @Override
+  public void exportKVs(
+      String category, byte[] startKey, String exportPath,
+      MetadataKeyFilter... filters) throws IOException {
+
+  }
+
+  @Override
+  public void exportKVs(
+      byte[] category, byte[] startKey, String exportPath,
+      MetadataKeyFilter... filters) throws IOException {
+
+  }
+
+  @Override
+  public void importKVs(
+      String category, String importPath) throws IOException {
+
+  }
+
+  @Override
+  public void importKVs(byte[] category, String importPath) throws IOException {
+
+  }
+
   /**
    * Returns a certain range of key value pairs as a list based on a
    * startKey or count. Further a {@link MetadataKeyFilter} can be added to
