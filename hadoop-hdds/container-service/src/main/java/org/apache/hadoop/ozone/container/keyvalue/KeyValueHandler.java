@@ -931,7 +931,7 @@ public class KeyValueHandler extends Handler {
         conf);
 
     populateContainerPathFields(container);
-    container.importContainerData(rawContainerStream, packer);
+    container.importContainerData(dbManager, rawContainerStream, packer);
     sendICR(container);
     return container;
 

@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.common.primitives.Longs;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -36,6 +37,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerD
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerType;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
+import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdfs.util.Canceler;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
 import org.apache.hadoop.io.nativeio.NativeIO;
@@ -46,6 +48,7 @@ import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerPacker;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.utils.DBCategory;
+import org.apache.hadoop.ozone.container.common.utils.DBKey;
 import org.apache.hadoop.ozone.container.common.utils.DBManager;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
@@ -79,6 +82,8 @@ import org.slf4j.LoggerFactory;
 public class KeyValueContainer implements Container<KeyValueContainerData> {
 
   private static final Logger LOG = LoggerFactory.getLogger(Container.class);
+
+  public static final String EXPORT_PREFIX = "export";
 
   // Use a non-fair RW lock for better throughput, we may revisit this decision
   // if this causes fairness issues.
@@ -366,17 +371,20 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
     }
   }
 
-  private void compactDB() throws StorageContainerException {
-    try {
-      try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
-        String category = getContainerData().getCategoryInDB();
-        db.getStore().compactRange(category);
-      }
+  private void exportDB() throws StorageContainerException {
+    String exportPath = containerData.getContainerPath() +
+        File.separator + EXPORT_PREFIX + containerData.getContainerID();
+    try(ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath())) {
+      String category = getContainerData().getCategoryInDB();
+      byte[] idByte = Longs.toByteArray(containerData.getContainerID());
+      MetadataKeyFilters.KeyPrefixFilter filter =
+          new MetadataKeyFilters.KeyPrefixFilter().addFilter(idByte);
+      db.getStore().exportKVs(category, null, exportPath, filter);
     } catch (StorageContainerException ex) {
       throw ex;
     } catch (IOException ex) {
-      LOG.error("Error in DB compaction while closing container", ex);
-      throw new StorageContainerException(ex, ERROR_IN_COMPACT_DB);
+      LOG.error("Error in DB export", ex);
+      throw new StorageContainerException(ex, CONTAINER_INTERNAL_ERROR);
     }
   }
 
@@ -461,7 +469,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
   }
 
   @Override
-  public void importContainerData(InputStream input,
+  public void importContainerData(DBManager dbManager, InputStream input,
       ContainerPacker<KeyValueContainerData> packer) throws IOException {
     writeLock();
     try {
@@ -499,12 +507,32 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       //fill in memory stat counter (keycount, byte usage)
       KeyValueContainerUtil.parseKVContainerData(containerData, config);
 
+      // allocate category
+      DBCategory dbCategory = dbManager.allocateDB(
+          containerData.getVolume().getHddsRootDir().toString());
+      containerData.setDbPath(dbCategory.getDbPath());
+      containerData.setCategoryInDB(dbCategory.getCategoryInDB());
+
+      // import data to rocksdb
+      ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath());
+      String importPath = containerData.getContainerPath() + File.separator +
+          EXPORT_PREFIX + containerData.getContainerID();
+      db.getStore().importKVs(dbCategory.getCategoryInDB(), importPath);
     } catch (Exception ex) {
       //delete all the temporary data in case of any exception.
       try {
         FileUtils.deleteDirectory(new File(containerData.getMetadataPath()));
         FileUtils.deleteDirectory(new File(containerData.getChunksPath()));
         FileUtils.deleteDirectory(getContainerFile());
+        if (containerData.getDbPath() != null &&
+            containerData.getCategoryInDB() != null) {
+          ReferenceCountedDB db = DBManager.getDB(containerData.getDbPath());
+          if (db != null) {
+            db.getStore().deleteRange(containerData.getCategoryInDB(),
+                DBKey.getDeletingBeginKey(containerData.getContainerID()),
+                DBKey.getDeletingEndKey(containerData.getContainerID()));
+          }
+        }
       } catch (Exception deleteex) {
         LOG.error(
             "Can not cleanup destination directories after a container import"
@@ -531,7 +559,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
               "Where as ContainerId="
               + getContainerData().getContainerID() + " is in state " + state);
     }
-    compactDB();
+    exportDB();
     packer.pack(this, destination);
   }
 

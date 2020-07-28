@@ -81,10 +81,10 @@ public class TarContainerPacker
       while (entry != null) {
         String name = entry.getName();
         long size = entry.getSize();
-        if (name.startsWith(DB_DIR_NAME + "/")) {
-          Path destinationPath = dbRoot
-              .resolve(name.substring(DB_DIR_NAME.length() + 1));
-          extractEntry(archiveInput, size, dbRoot, destinationPath);
+        if (name.equals(DB_DIR_NAME)) {
+          String path = containerData.getContainerPath() + File.separator +
+              KeyValueContainer.EXPORT_PREFIX + containerData.getContainerID();
+          extractEntry(archiveInput, size, Paths.get(containerData.getContainerPath()), Paths.get(path));
         } else if (name.startsWith(CHUNKS_DIR_NAME + "/")) {
           Path destinationPath = chunksRoot
               .resolve(name.substring(CHUNKS_DIR_NAME.length() + 1));
@@ -92,6 +92,9 @@ public class TarContainerPacker
         } else if (CONTAINER_FILE_NAME.equals(name)) {
           //Don't do anything. Container file should be unpacked in a
           //separated step by unpackContainerDescriptor call.
+          if (containerData.getMetadataPath() != null) {
+            Files.createDirectories(Paths.get(containerData.getMetadataPath()));
+          }
           descriptorFileContent = readEntry(archiveInput, size);
         } else {
           throw new IllegalArgumentException(
@@ -152,7 +155,9 @@ public class TarContainerPacker
     try (OutputStream compressed = compress(output);
          ArchiveOutputStream archiveOutput = tar(compressed)) {
 
-      includePath(containerData.getDbFile().toPath(), DB_DIR_NAME,
+      String exportPath = containerData.getContainerPath() +
+          File.separator + KeyValueContainer.EXPORT_PREFIX + containerData.getContainerID();
+      includeFile(new File(exportPath) , DB_DIR_NAME,
           archiveOutput);
 
       includePath(Paths.get(containerData.getChunksPath()), CHUNKS_DIR_NAME,

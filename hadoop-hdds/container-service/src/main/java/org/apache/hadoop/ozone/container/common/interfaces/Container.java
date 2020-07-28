@@ -139,7 +139,7 @@ public interface Container<CONTAINERDATA extends ContainerData> extends RwLock {
   /**
    * Import the container from an external archive.
    */
-  void importContainerData(InputStream stream,
+  void importContainerData(DBManager dbManager, InputStream stream,
       ContainerPacker<CONTAINERDATA> packer) throws IOException;
 
   /**

@@ -205,104 +205,112 @@ public class TestKeyValueContainer {
         "DB does not exist");
   }
 
-//  @Test
-//  public void testContainerImportExport() throws Exception {
-//
-//    long containerId = keyValueContainer.getContainerData().getContainerID();
-//    // Create Container.
-//    keyValueContainer.create(
-//        dbManager, volumeSet, volumeChoosingPolicy, scmId);
-//
-//
-//    keyValueContainerData = keyValueContainer
-//        .getContainerData();
-//
-//    keyValueContainerData.setState(
-//        ContainerProtos.ContainerDataProto.State.CLOSED);
-//
-//    int numberOfKeysToWrite = 12;
-//    //write one few keys to check the key count after import
-//    try(ReferenceCountedDB metadataStore =
-//        DBManager.getDB(keyValueContainerData.getDbPath())) {
-//      for (int i = 0; i < numberOfKeysToWrite; i++) {
-//        metadataStore.getStore().put(
-//            keyValueContainerData.getCategoryInDB(),
-//            ("test" + i).getBytes(UTF_8),
-//            "test".getBytes(UTF_8));
-//      }
-//
-//      // As now when we put blocks, we increment block count and update in DB.
-//      // As for test, we are doing manually so adding key count to DB.
-//      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
-//      metadataStore.getStore().put(
-//          keyValueContainerData.getCategoryInDB(),
-//          blockCountKey,
-//          Longs.toByteArray(numberOfKeysToWrite));
-//    }
-//
-//    Map<String, String> metadata = new HashMap<>();
-//    metadata.put("key1", "value1");
-//    keyValueContainer.update(metadata, true);
-//
-//    //destination path
-//    File folderToExport = folder.newFile("exported.tar.gz");
-//
-//    TarContainerPacker packer = new TarContainerPacker();
-//
-//    //export the container
-//    try (FileOutputStream fos = new FileOutputStream(folderToExport)) {
-//      keyValueContainer
-//          .exportContainerData(fos, packer);
-//    }
-//
-//    //delete the original one
-//    keyValueContainer.delete();
-//
-//    //create a new one
-//    KeyValueContainerData containerData =
-//        new KeyValueContainerData(containerId,
-//            keyValueContainerData.getLayOutVersion(),
-//            keyValueContainerData.getMaxSize(),
-//            keyValueContainerData.getDbPath(),
-//            keyValueContainerData.getCategoryInDB(),
-//            UUID.randomUUID().toString(),
-//            datanodeId.toString());
-//    KeyValueContainer container = new KeyValueContainer(containerData, conf);
-//
-//    HddsVolume containerVolume = volumeChoosingPolicy.chooseVolume(volumeSet
-//        .getVolumesList(), 1);
-//    String hddsVolumeDir = containerVolume.getHddsRootDir().toString();
-//
-//    container.populatePathFields(scmId, containerVolume, hddsVolumeDir);
-//    try (FileInputStream fis = new FileInputStream(folderToExport)) {
-//      container.importContainerData(fis, packer);
-//    }
-//
-//    assertEquals("value1", containerData.getMetadata().get("key1"));
-//    assertEquals(keyValueContainerData.getContainerDBType(),
-//        containerData.getContainerDBType());
-//    assertEquals(keyValueContainerData.getState(),
-//        containerData.getState());
-//    assertEquals(numberOfKeysToWrite,
-//        containerData.getKeyCount());
-//    assertEquals(keyValueContainerData.getLayOutVersion(),
-//        containerData.getLayOutVersion());
-//    assertEquals(keyValueContainerData.getMaxSize(),
-//        containerData.getMaxSize());
-//    assertEquals(keyValueContainerData.getBytesUsed(),
-//        containerData.getBytesUsed());
-//
-//    //Can't overwrite existing container
-//    try {
-//      try (FileInputStream fis = new FileInputStream(folderToExport)) {
-//        container.importContainerData(fis, packer);
-//      }
-//      fail("Container is imported twice. Previous files are overwritten");
-//    } catch (IOException ex) {
-//      //all good
-//    }
-//
-//  }
+  @Test
+  public void testContainerImportExport() throws Exception {
+
+    long containerId = keyValueContainer.getContainerData().getContainerID();
+    // Create Container.
+    keyValueContainer.create(
+        dbManager, volumeSet, volumeChoosingPolicy, scmId);
+
+    keyValueContainerData = keyValueContainer
+        .getContainerData();
+
+    keyValueContainerData.setState(
+        ContainerProtos.ContainerDataProto.State.CLOSED);
+
+    List<ContainerProtos.ChunkInfo> chunkList = new ArrayList<>();
+    ChunkInfo info = new ChunkInfo("chunkfile", 0, 0);
+    chunkList.add(info.getProtoBufMessage());
+
+    int numberOfKeysToWrite = 12;
+    //write one few keys to check the key count after import
+    try(ReferenceCountedDB metadataStore =
+        DBManager.getDB(keyValueContainerData.getDbPath())) {
+      for (int i = 0; i < numberOfKeysToWrite; i++) {
+        BlockID blockID = new BlockID(containerId, i);
+        BlockData blockData = new BlockData(blockID);
+        blockData.setChunks(chunkList);
+
+        metadataStore.getStore().put(
+            keyValueContainerData.getCategoryInDB(),
+            DBKey.getBlockKey(containerId, i),
+            blockData.getProtoBufMessage().toByteArray());
+      }
+
+      // As now when we put blocks, we increment block count and update in DB.
+      // As for test, we are doing manually so adding key count to DB.
+      byte[] blockCountKey = DBKey.getBlockCountDBKey(containerId);
+      metadataStore.getStore().put(
+          keyValueContainerData.getCategoryInDB(),
+          blockCountKey,
+          Longs.toByteArray(numberOfKeysToWrite));
+    }
+
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("key1", "value1");
+    keyValueContainer.update(metadata, true);
+
+    //destination path
+    File folderToExport = folder.newFile("exported.tar.gz");
+
+    TarContainerPacker packer = new TarContainerPacker();
+
+    //export the container
+    try (FileOutputStream fos = new FileOutputStream(folderToExport)) {
+      keyValueContainer
+          .exportContainerData(fos, packer);
+    }
+
+    //delete the original one
+    keyValueContainer.delete();
+
+    //create a new one
+    KeyValueContainerData containerData =
+        new KeyValueContainerData(containerId,
+            keyValueContainerData.getLayOutVersion(),
+            keyValueContainerData.getMaxSize(),
+            keyValueContainerData.getDbPath(),
+            keyValueContainerData.getCategoryInDB(),
+            UUID.randomUUID().toString(),
+            datanodeId.toString());
+    KeyValueContainer container = new KeyValueContainer(containerData, conf);
+
+    HddsVolume containerVolume = volumeChoosingPolicy.chooseVolume(volumeSet
+        .getVolumesList(), 1);
+    String hddsVolumeDir = containerVolume.getHddsRootDir().toString();
+
+    container.populatePathFields(scmId, containerVolume, hddsVolumeDir);
+
+    try (FileInputStream fis = new FileInputStream(folderToExport)) {
+      container.importContainerData(dbManager, fis, packer);
+    }
+
+    assertEquals("value1", containerData.getMetadata().get("key1"));
+    assertEquals(keyValueContainerData.getContainerDBType(),
+        containerData.getContainerDBType());
+    assertEquals(keyValueContainerData.getState(),
+        containerData.getState());
+    assertEquals(numberOfKeysToWrite,
+        containerData.getKeyCount());
+    assertEquals(keyValueContainerData.getLayOutVersion(),
+        containerData.getLayOutVersion());
+    assertEquals(keyValueContainerData.getMaxSize(),
+        containerData.getMaxSize());
+    assertEquals(keyValueContainerData.getBytesUsed(),
+        containerData.getBytesUsed());
+
+    //Can't overwrite existing container
+    try {
+      try (FileInputStream fis = new FileInputStream(folderToExport)) {
+        container.importContainerData(dbManager, fis, packer);
+      }
+      fail("Container is imported twice. Previous files are overwritten");
+    } catch (IOException ex) {
+      //all good
+    }
+
+  }
 
   @Test
   public void testDuplicateContainer() throws Exception {
