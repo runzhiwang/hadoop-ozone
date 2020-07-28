@@ -137,7 +137,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       containerData.setChunksPath(chunksPath.getPath());
 
       containerData.setDbPath(dbCategory.getDbPath());
-      containerData.setCategoryInDB(RocksDB.DEFAULT_COLUMN_FAMILY);
+      containerData.setCategoryInDB(dbCategory.getCategoryInDB());
       containerData.setVolume(containerVolume);
 
       // Create .container file
