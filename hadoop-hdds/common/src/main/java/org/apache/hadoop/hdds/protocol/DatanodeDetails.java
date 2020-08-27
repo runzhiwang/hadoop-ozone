@@ -29,6 +29,7 @@ import org.apache.hadoop.hdds.scm.net.NodeImpl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * DatanodeDetails class contains details about DataNode like:
@@ -53,6 +54,7 @@ public class DatanodeDetails extends NodeImpl implements
   private long setupTime;
   private String revision;
   private String buildDate;
+  private AtomicInteger suggestedLeaderCount = new AtomicInteger();
 
   /**
    * Constructs DatanodeDetails instance. DatanodeDetails.Builder is used
@@ -71,7 +73,8 @@ public class DatanodeDetails extends NodeImpl implements
   @SuppressWarnings("parameternumber")
   private DatanodeDetails(UUID uuid, String ipAddress, String hostName,
       String networkLocation, List<Port> ports, String certSerialId,
-      String version, long setupTime, String revision, String buildDate) {
+      String version, long setupTime, String revision, String buildDate,
+      int suggestedLeaderCount) {
     super(hostName, networkLocation, NetConstants.NODE_COST_DEFAULT);
     this.uuid = uuid;
     this.ipAddress = ipAddress;
@@ -82,6 +85,7 @@ public class DatanodeDetails extends NodeImpl implements
     this.setupTime = setupTime;
     this.revision = revision;
     this.buildDate = buildDate;
+    this.suggestedLeaderCount.set(suggestedLeaderCount);
   }
 
   public DatanodeDetails(DatanodeDetails datanodeDetails) {
@@ -97,6 +101,7 @@ public class DatanodeDetails extends NodeImpl implements
     this.setupTime = datanodeDetails.setupTime;
     this.revision = datanodeDetails.revision;
     this.buildDate = datanodeDetails.buildDate;
+    this.suggestedLeaderCount.set(datanodeDetails.getSuggestedLeaderCount());
   }
 
   /**
@@ -190,6 +195,18 @@ public class DatanodeDetails extends NodeImpl implements
     return null;
   }
 
+  public int getSuggestedLeaderCount() {
+    return suggestedLeaderCount.get();
+  }
+
+  public void incSuggestedLeaderCount() {
+    suggestedLeaderCount.incrementAndGet();
+  }
+
+  public void decSuggestedLeaderCount() {
+    suggestedLeaderCount.decrementAndGet();
+  }
+
   /**
    * Returns a DatanodeDetails from the protocol buffers.
    *
@@ -236,6 +253,10 @@ public class DatanodeDetails extends NodeImpl implements
     }
     if (datanodeDetailsProto.hasBuildDate()) {
       builder.setBuildDate(datanodeDetailsProto.getBuildDate());
+    }
+    if (datanodeDetailsProto.hasSuggestedLeaderCount()) {
+      builder.setSuggestedLeaderCount(
+          datanodeDetailsProto.getSuggestedLeaderCount());
     }
     return builder.build();
   }
@@ -291,6 +312,8 @@ public class DatanodeDetails extends NodeImpl implements
     if (!Strings.isNullOrEmpty(getBuildDate())) {
       builder.setBuildDate(getBuildDate());
     }
+
+    builder.setSuggestedLeaderCount(getSuggestedLeaderCount());
 
     return builder.build();
   }
@@ -348,6 +371,7 @@ public class DatanodeDetails extends NodeImpl implements
     private long setupTime;
     private String revision;
     private String buildDate;
+    private int suggestedLeaderCount;
 
     /**
      * Default private constructor. To create Builder instance use
@@ -485,6 +509,18 @@ public class DatanodeDetails extends NodeImpl implements
     }
 
     /**
+     * Sets suggestedLeaderCount of DataNode.
+     *
+     * @param leaderCount the suggested leader count of DataNode.
+     *
+     * @return DatanodeDetails.Builder
+     */
+    public Builder setSuggestedLeaderCount(int leaderCount) {
+      this.suggestedLeaderCount = leaderCount;
+      return this;
+    }
+
+    /**
      * Builds and returns DatanodeDetails instance.
      *
      * @return DatanodeDetails
@@ -496,7 +532,7 @@ public class DatanodeDetails extends NodeImpl implements
       }
       DatanodeDetails dn = new DatanodeDetails(id, ipAddress, hostName,
           networkLocation, ports, certSerialId,
-          version, setupTime, revision, buildDate);
+          version, setupTime, revision, buildDate, suggestedLeaderCount);
       if (networkName != null) {
         dn.setNetworkName(networkName);
       }
