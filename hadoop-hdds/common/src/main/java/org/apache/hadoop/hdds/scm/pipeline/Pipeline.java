@@ -61,7 +61,7 @@ public final class Pipeline {
   private UUID leaderId;
   // Timestamp for pipeline upon creation
   private Instant creationTimestamp;
-  private UUID suggestedLeader;
+  private UUID suggestedLeaderId;
 
   /**
    * The immutable properties of pipeline object is used in
@@ -124,12 +124,12 @@ public final class Pipeline {
     return creationTimestamp;
   }
 
-  public void setSuggestedLeader(UUID suggestedLeader) {
-    this.suggestedLeader = suggestedLeader;
+  public void setSuggestedLeaderId(UUID suggestedLeaderId) {
+    this.suggestedLeaderId = suggestedLeaderId;
   }
 
-  public UUID getSuggestedLeader() {
-    return suggestedLeader;
+  public UUID getSuggestedLeaderId() {
+    return suggestedLeaderId;
   }
 
   /**
@@ -287,6 +287,14 @@ public final class Pipeline {
       builder.setLeaderID128(uuid128);
     }
 
+    if (suggestedLeaderId != null) {
+      HddsProtos.UUID uuid128 = HddsProtos.UUID.newBuilder()
+          .setMostSigBits(suggestedLeaderId.getMostSignificantBits())
+          .setLeastSigBits(suggestedLeaderId.getLeastSignificantBits())
+          .build();
+      builder.setSuggestedLeaderID(uuid128);
+    }
+
     // To save the message size on wire, only transfer the node order based on
     // network topology
     List<DatanodeDetails> nodes = nodesInOrder.get();
@@ -324,12 +332,19 @@ public final class Pipeline {
       leaderId = UUID.fromString(pipeline.getLeaderID());
     }
 
+    UUID suggestedLeaderId = null;
+    if (pipeline.hasSuggestedLeaderID()) {
+      HddsProtos.UUID uuid = pipeline.getSuggestedLeaderID();
+      suggestedLeaderId = new UUID(uuid.getMostSigBits(), uuid.getLeastSigBits());
+    }
+
     return new Builder().setId(PipelineID.getFromProtobuf(pipeline.getId()))
         .setFactor(pipeline.getFactor())
         .setType(pipeline.getType())
         .setState(PipelineState.fromProtobuf(pipeline.getState()))
         .setNodes(nodes)
         .setLeaderId(leaderId)
+        .setSuggestedLeaderId(suggestedLeaderId)
         .setNodesInOrder(pipeline.getMemberOrdersList())
         .setCreateTimestamp(pipeline.getCreationTimeStamp())
         .build();
@@ -414,7 +429,7 @@ public final class Pipeline {
       this.nodesInOrder = pipeline.nodesInOrder.get();
       this.leaderId = pipeline.getLeaderId();
       this.creationTimestamp = pipeline.getCreationTimestamp();
-      this.suggestedLeaderId = pipeline.getSuggestedLeader();
+      this.suggestedLeaderId = pipeline.getSuggestedLeaderId();
     }
 
     public Builder setId(PipelineID id1) {
@@ -458,8 +473,8 @@ public final class Pipeline {
       return this;
     }
 
-    public Builder setSuggestedLeader(UUID suggestedLeader) {
-      this.suggestedLeaderId = suggestedLeader;
+    public Builder setSuggestedLeaderId(UUID suggestedLeaderId) {
+      this.suggestedLeaderId = suggestedLeaderId;
       return this;
     }
 
@@ -501,7 +516,7 @@ public final class Pipeline {
         pipeline.setNodesInOrder(nodesInOrder);
       }
 
-      pipeline.setSuggestedLeader(suggestedLeaderId);
+      pipeline.setSuggestedLeaderId(suggestedLeaderId);
 
       return pipeline;
     }
