@@ -31,7 +31,7 @@ import org.junit.Test;
 import static org.mockito.Mockito.mock;
 
 /**
- * Tests for LeaderChoosePolicy
+ * Unit tests for {@link LeaderChoosePolicy}.
  */
 public class TestLeaderChoosePolicy {
   private OzoneConfiguration conf;
@@ -61,7 +61,8 @@ public class TestLeaderChoosePolicy {
   public void testClassNotImplemented() {
     // set a class not implemented
     conf.set(ScmConfigKeys.OZONE_SCM_PIPELINE_LEADER_CHOOSING_POLICY,
-        "org.apache.hadoop.hdds.scm.pipeline.leader.choose.algorithms.HelloWorld");
+        "org.apache.hadoop.hdds.scm.pipeline.leader.choose.algorithms" +
+            ".HelloWorld");
     new RatisPipelineProvider(
         mock(NodeManager.class),
         mock(PipelineStateManager.class),
