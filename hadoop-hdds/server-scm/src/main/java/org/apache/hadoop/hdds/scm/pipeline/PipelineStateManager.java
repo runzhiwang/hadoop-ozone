@@ -59,7 +59,7 @@ public class PipelineStateManager {
     pipelineStateMap.addContainerToPipeline(pipelineId, containerID);
   }
 
-  Pipeline getPipeline(PipelineID pipelineID) throws PipelineNotFoundException {
+  public Pipeline getPipeline(PipelineID pipelineID) throws PipelineNotFoundException {
     return pipelineStateMap.getPipeline(pipelineID);
   }
 
