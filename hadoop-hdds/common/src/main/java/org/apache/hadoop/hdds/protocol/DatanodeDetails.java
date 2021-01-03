@@ -678,7 +678,7 @@ public class DatanodeDetails extends NodeImpl implements
      * Ports that are supported in DataNode.
      */
     public enum Name {
-      STANDALONE, RATIS, REST
+      STANDALONE, RATIS, DATASTREAM, REST
     }
 
     private Name name;

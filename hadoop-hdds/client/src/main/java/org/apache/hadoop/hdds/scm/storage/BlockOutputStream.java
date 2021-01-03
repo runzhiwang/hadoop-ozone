@@ -38,6 +38,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ChunkInfo;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.KeyValue;
 import org.apache.hadoop.hdds.scm.OzoneClientConfig;
 import org.apache.hadoop.hdds.scm.XceiverClientFactory;
+import org.apache.hadoop.hdds.scm.XceiverClientRatis;
 import org.apache.hadoop.hdds.scm.XceiverClientReply;
 import org.apache.hadoop.hdds.scm.XceiverClientSpi;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
@@ -54,6 +55,12 @@ import static org.apache.hadoop.hdds.scm.storage.ContainerProtocolCalls.writeChu
 
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.apache.ratis.client.api.DataStreamOutput;
+import org.apache.ratis.datastream.impl.DataStreamPacketByteBuffer;
+import org.apache.ratis.io.StandardWriteOption;
+import org.apache.ratis.io.WriteOption;
+import org.apache.ratis.protocol.DataStreamReply;
+import org.apache.ratis.server.RaftServerConfigKeys;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,6 +102,7 @@ public class BlockOutputStream extends OutputStream {
   // request will fail upfront.
   private final AtomicReference<IOException> ioException;
   private final ExecutorService responseExecutor;
+  private final ExecutorService putBlockExecutor;
 
   // the effective length of data flushed so far
   private long totalDataFlushedLength;
@@ -126,6 +134,7 @@ public class BlockOutputStream extends OutputStream {
   private ChunkBuffer currentBuffer;
   private final Token<? extends TokenIdentifier> token;
 
+  private final DataStreamOutput out;
   /**
    * Creates a new BlockOutputStream.
    *
@@ -150,7 +159,24 @@ public class BlockOutputStream extends OutputStream {
     this.containerBlockData =
         BlockData.newBuilder().setBlockID(blockID.getDatanodeBlockIDProtobuf())
             .addMetadata(keyValue);
-    this.xceiverClient = xceiverClientManager.acquireClient(pipeline);
+    try {
+      this.xceiverClient = xceiverClientManager.acquireClient(pipeline);
+    } catch (Exception e) {
+      LOG.warn("exception:", e);
+    }
+    ContainerProtos.WriteChunkRequestProto.Builder writeChunkRequest =
+        ContainerProtos.WriteChunkRequestProto.newBuilder()
+            .setBlockID(blockID.getDatanodeBlockIDProtobuf());
+
+
+    String id = xceiverClient.getPipeline().getFirstNode().getUuidString();
+    ContainerProtos.ContainerCommandRequestProto.Builder builder =
+        ContainerProtos.ContainerCommandRequestProto.newBuilder().setCmdType(ContainerProtos.Type.StreamInit)
+            .setContainerID(blockID.getContainerID())
+            .setDatanodeUuid(id).setWriteChunk(writeChunkRequest);
+
+    this.out = ((XceiverClientRatis)this.xceiverClient).getClient().getDataStreamApi().stream(
+        builder.build().toByteString().asReadOnlyByteBuffer());
     this.bufferPool = bufferPool;
     this.token = token;
 
@@ -166,6 +192,7 @@ public class BlockOutputStream extends OutputStream {
 
     // A single thread executor handle the responses of async requests
     responseExecutor = Executors.newSingleThreadExecutor();
+    putBlockExecutor = Executors.newSingleThreadExecutor();
     commitWatcher = new CommitWatcher(bufferPool, xceiverClient);
     bufferList = null;
     totalDataFlushedLength = 0;
@@ -418,59 +445,68 @@ public class BlockOutputStream extends OutputStream {
       byteBufferList = null;
     }
 
-    CompletableFuture<ContainerProtos.
-        ContainerCommandResponseProto> flushFuture = null;
-    try {
-      BlockData blockData = containerBlockData.build();
-      XceiverClientReply asyncReply =
-          putBlockAsync(xceiverClient, blockData, close, token);
-      CompletableFuture<ContainerProtos.ContainerCommandResponseProto> future =
-          asyncReply.getResponse();
-      flushFuture = future.thenApplyAsync(e -> {
+
+    BlockData blockData = containerBlockData.build();
+
+    CompletableFuture[] EMPTY_COMPLETABLE_FUTURE_ARRAY = {};
+    return CompletableFuture.allOf(futures.toArray(EMPTY_COMPLETABLE_FUTURE_ARRAY)).thenApplyAsync(v -> {
+      try {
+        CompletableFuture<ContainerProtos.
+            ContainerCommandResponseProto> flushFuture = null;
         try {
-          validateResponse(e);
-        } catch (IOException sce) {
-          throw new CompletionException(sce);
-        }
-        // if the ioException is not set, putBlock is successful
-        if (getIoException() == null && !force) {
-          BlockID responseBlockID = BlockID.getFromProtobuf(
-              e.getPutBlock().getCommittedBlockLength().getBlockID());
-          Preconditions.checkState(blockID.get().getContainerBlockID()
-              .equals(responseBlockID.getContainerBlockID()));
-          // updates the bcsId of the block
-          blockID.set(responseBlockID);
-          if (LOG.isDebugEnabled()) {
-            LOG.debug(
-                "Adding index " + asyncReply.getLogIndex() + " commitMap size "
-                    + commitWatcher.getCommitInfoMapSize() + " flushLength "
-                    + flushPos + " numBuffers " + byteBufferList.size()
-                    + " blockID " + blockID + " bufferPool size" + bufferPool
-                    .getSize() + " currentBufferIndex " + bufferPool
-                    .getCurrentBufferIndex());
-          }
-          // for standalone protocol, logIndex will always be 0.
-          commitWatcher
-              .updateCommitInfoMap(asyncReply.getLogIndex(), byteBufferList);
-        }
-        return e;
-      }, responseExecutor).exceptionally(e -> {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("putBlock failed for blockID {} with exception {}",
+          XceiverClientReply asyncReply =
+              putBlockAsync(xceiverClient, blockData, close, token);
+          CompletableFuture<ContainerProtos.ContainerCommandResponseProto> future =
+              asyncReply.getResponse();
+          flushFuture = future.thenApplyAsync(e -> {
+            try {
+              validateResponse(e);
+            } catch (IOException sce) {
+              throw new CompletionException(sce);
+            }
+            // if the ioException is not set, putBlock is successful
+            if (getIoException() == null && !force) {
+              BlockID responseBlockID = BlockID.getFromProtobuf(
+                  e.getPutBlock().getCommittedBlockLength().getBlockID());
+              Preconditions.checkState(blockID.get().getContainerBlockID()
+                  .equals(responseBlockID.getContainerBlockID()));
+              // updates the bcsId of the block
+              blockID.set(responseBlockID);
+              if (LOG.isDebugEnabled()) {
+                LOG.debug(
+                    "Adding index " + asyncReply.getLogIndex() + " commitMap size "
+                        + commitWatcher.getCommitInfoMapSize() + " flushLength "
+                        + flushPos + " numBuffers " + byteBufferList.size()
+                        + " blockID " + blockID + " bufferPool size" + bufferPool
+                        .getSize() + " currentBufferIndex " + bufferPool
+                        .getCurrentBufferIndex());
+              }
+              // for standalone protocol, logIndex will always be 0.
+              commitWatcher
+                  .updateCommitInfoMap(asyncReply.getLogIndex(), byteBufferList);
+            }
+            return e;
+          }, responseExecutor).exceptionally(e -> {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("putBlock failed for blockID {} with exception {}",
                   blockID, e.getLocalizedMessage());
+            }
+            CompletionException ce = new CompletionException(e);
+            setIoException(ce);
+            throw ce;
+          });
+        } catch (IOException | ExecutionException e) {
+          throw new IOException(EXCEPTION_MSG + e.toString(), e);
+        } catch (InterruptedException ex) {
+          Thread.currentThread().interrupt();
+          handleInterruptedException(ex, false);
         }
-        CompletionException ce =  new CompletionException(e);
-        setIoException(ce);
-        throw ce;
-      });
-    } catch (IOException | ExecutionException e) {
-      throw new IOException(EXCEPTION_MSG + e.toString(), e);
-    } catch (InterruptedException ex) {
-      Thread.currentThread().interrupt();
-      handleInterruptedException(ex, false);
-    }
-    commitWatcher.getFutureMap().put(flushPos, flushFuture);
-    return flushFuture;
+        commitWatcher.getFutureMap().put(flushPos, flushFuture);
+        return flushFuture.get();
+      } catch (Exception e) {
+        throw new CompletionException(e);
+      }
+    }, putBlockExecutor);
   }
 
   @Override
@@ -546,11 +582,16 @@ public class BlockOutputStream extends OutputStream {
         && bufferPool != null && bufferPool.getSize() > 0) {
       try {
         handleFlush(true);
+        out.closeAsync().thenApplyAsync(r -> {
+          return null;
+        }, responseExecutor);
       } catch (ExecutionException e) {
         handleExecutionException(e);
       } catch (InterruptedException ex) {
         Thread.currentThread().interrupt();
         handleInterruptedException(ex, true);
+      } catch (Exception e) {
+        System.err.println(e);
       } finally {
         cleanup(false);
       }
@@ -635,6 +676,7 @@ public class BlockOutputStream extends OutputStream {
     return xceiverClient == null;
   }
 
+  List<CompletableFuture<DataStreamReply>> futures = new ArrayList<>();
   /**
    * Writes buffered data as a new chunk to the container and saves chunk
    * information to be used later in putKey call.
@@ -643,6 +685,7 @@ public class BlockOutputStream extends OutputStream {
    * @throws OzoneChecksumException if there is an error while computing
    * checksum
    */
+  int writeSize = 0;
   private void writeChunkToContainer(ChunkBuffer chunk) throws IOException {
     int effectiveChunkSize = chunk.remaining();
     final long offset = chunkOffset.getAndAdd(effectiveChunkSize);
@@ -660,33 +703,35 @@ public class BlockOutputStream extends OutputStream {
       LOG.debug("Writing chunk {} length {} at offset {}",
           chunkInfo.getChunkName(), effectiveChunkSize, offset);
     }
+    writeSize += data.asReadOnlyByteBuffer().remaining();
 
-    try {
-      XceiverClientReply asyncReply = writeChunkAsync(xceiverClient, chunkInfo,
-          blockID.get(), data, token);
-      CompletableFuture<ContainerProtos.ContainerCommandResponseProto> future =
-          asyncReply.getResponse();
-      future.thenApplyAsync(e -> {
-        try {
-          validateResponse(e);
-        } catch (IOException sce) {
-          future.completeExceptionally(sce);
-        }
-        return e;
-      }, responseExecutor).exceptionally(e -> {
-        LOG.error("writing chunk failed " + chunkInfo.getChunkName() +
+    WriteOption[] options = new WriteOption[0];
+    if (writeSize >= 16 * 1000 * 1000) {
+      writeSize = 0;
+      options = new WriteOption[1];
+      options[0] = StandardWriteOption.SYNC;
+    }
+
+    CompletableFuture<DataStreamReply> future = out.writeAsync(data.asReadOnlyByteBuffer(), options)
+        .whenCompleteAsync((r,e) -> {
+          if (e != null) {
+            LOG.error("writing chunk failed " + chunkInfo.getChunkName() +
                 " blockID " + blockID + " with exception "
                 + e.getLocalizedMessage());
-        CompletionException ce = new CompletionException(e);
-        setIoException(ce);
-        throw ce;
-      });
-    } catch (IOException | ExecutionException e) {
-      throw new IOException(EXCEPTION_MSG + e.toString(), e);
-    } catch (InterruptedException ex) {
-      Thread.currentThread().interrupt();
-      handleInterruptedException(ex, false);
-    }
+            CompletionException ce = new CompletionException(e);
+            setIoException(ce);
+            throw ce;
+          }
+          if (!r.isSuccess()) {
+            LOG.error("writing chunk failed " + chunkInfo.getChunkName() +
+                " blockID " + blockID + " with exception ");
+            CompletionException ce = new CompletionException(new IOException("write chunk failed"));
+            setIoException(ce);
+            throw ce;
+          }
+        }, responseExecutor);
+
+    futures.add(future);
     containerBlockData.addChunks(chunkInfo);
   }
 

@@ -66,6 +66,21 @@ public final class OzoneConfigKeys {
   public static final int DFS_CONTAINER_RATIS_IPC_PORT_DEFAULT = 9858;
 
   /**
+   * Ratis Port where containers listen to.
+   */
+  public static final String DFS_CONTAINER_RATIS_DATASTREAM_IPC_PORT =
+      "dfs.container.ratis.datastream.ipc";
+  public static final int DFS_CONTAINER_RATIS_DATASTREAM_IPC_PORT_DEFAULT = 9857;
+
+  public static final String DFS_CONTAINER_RATIS_DATASTREAM_REQUEST_THREADS =
+      "dfs.container.ratis.datastream.request.threads";
+  public static final int DFS_CONTAINER_RATIS_DATASTREAM_REQUEST_THREADS_DEFAULT = 9857;
+
+  public static final String DFS_CONTAINER_RATIS_DATASTREAM_WRITE_THREADS =
+      "dfs.container.ratis.datastream.write.threads";
+  public static final int DFS_CONTAINER_RATIS_DATASTREAM_WRITE_THREADS_DEFAULT = 9857;
+
+  /**
    * When set to true, allocate a random free port for ozone container, so that
    * a mini cluster is able to launch multiple containers on a node.
    */

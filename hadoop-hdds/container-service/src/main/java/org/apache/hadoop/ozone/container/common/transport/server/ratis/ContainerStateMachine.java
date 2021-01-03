@@ -20,13 +20,19 @@ package org.apache.hadoop.ozone.container.common.transport.server.ratis;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.apache.hadoop.hdds.HddsUtils;
+import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.DatanodeRatisServerConfig;
 import org.apache.hadoop.hdds.conf.StorageUnit;
@@ -53,6 +60,7 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerNotOpenExcep
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import org.apache.hadoop.hdds.utils.Cache;
 import org.apache.hadoop.hdds.utils.ResourceLimitCache;
+import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
@@ -74,6 +82,7 @@ import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.ratis.server.raftlog.RaftLog;
 import org.apache.ratis.server.storage.RaftStorage;
+import org.apache.ratis.statemachine.StateMachine;
 import org.apache.ratis.statemachine.StateMachineStorage;
 import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
@@ -507,6 +516,84 @@ public class ContainerStateMachine extends BaseStateMachine {
     }
     int i = Math.abs(hash) % chunkExecutors.size();
     return chunkExecutors.get(i);
+  }
+
+
+  static class FileStoreDataChannel implements StateMachine.DataChannel {
+    private final Path path;
+    private final RandomAccessFile randomAccessFile;
+
+    FileStoreDataChannel(Path path) throws FileNotFoundException {
+      this.path = path;
+      this.randomAccessFile = new RandomAccessFile(path.toFile(), "rw");
+    }
+
+    @Override
+    public void force(boolean metadata) throws IOException {
+      LOG.debug("force({}) at {}", metadata, path);
+      randomAccessFile.getChannel().force(metadata);
+    }
+
+    @Override
+    public int write(ByteBuffer src) throws IOException {
+      return randomAccessFile.getChannel().write(src);
+    }
+
+    @Override
+    public boolean isOpen() {
+      return randomAccessFile.getChannel().isOpen();
+    }
+
+    @Override
+    public void close() throws IOException {
+      randomAccessFile.close();
+    }
+  }
+
+  class LocalStream implements DataStream {
+    private final DataChannel dataChannel;
+
+    LocalStream(DataChannel dataChannel) {
+      this.dataChannel = dataChannel;
+    }
+
+    @Override
+    public DataChannel getDataChannel() {
+      return dataChannel;
+    }
+
+    @Override
+    public CompletableFuture<?> cleanUp() {
+      return CompletableFuture.supplyAsync(() -> {
+        try {
+          dataChannel.close();
+          return true;
+        } catch (IOException e) {
+          throw new CompletionException("Failed to close data channel", e);
+        }
+      });
+    }
+  }
+
+  @Override
+  public CompletableFuture<DataStream> stream(RaftClientRequest request) {
+    try {
+      ContainerCommandRequestProto requestProto =
+          getContainerCommandRequestProto(gid, request.getMessage().getContent());
+      DispatcherContext context =
+          new DispatcherContext.Builder()
+              .setStage(DispatcherContext.WriteChunkStage.WRITE_DATA)
+              .setContainer2BCSIDMap(container2BCSIDMap)
+              .build();
+
+      ContainerCommandResponseProto response = runCommand(requestProto, context);
+      String path = response.getMessage();
+      CompletableFuture<DataStream> dataStream = new CompletableFuture<>();
+      dataStream.complete(new LocalStream(new FileStoreDataChannel(Paths.get(path))));
+      return dataStream;
+    } catch (IOException e) {
+      throw new CompletionException("Failed to create data stream", e);
+    }
   }
 
   /*

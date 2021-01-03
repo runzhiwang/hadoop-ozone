@@ -64,13 +64,13 @@ public class OzoneClientConfig {
   private boolean streamBufferFlushDelay = true;
 
   @Config(key = "stream.buffer.max.size",
-      defaultValue = "32MB",
+      defaultValue = "160MB",
       type = ConfigType.SIZE,
       description = "Size which determines at what buffer position write call"
           + " be blocked till acknowledgement of the first partial flush "
           + "happens by all servers.",
       tags = ConfigTag.CLIENT)
-  private long streamBufferMaxSize = 32 * 1024 * 1024;
+  private long streamBufferMaxSize = 160 * 1024 * 1024;
 
   @Config(key = "max.retries",
       defaultValue = "5",

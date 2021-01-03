@@ -53,6 +53,7 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.PipelineReport;
 import org.apache.hadoop.hdds.ratis.ContainerCommandRequestMessage;
 import org.apache.hadoop.hdds.ratis.RatisHelper;
+import org.apache.hadoop.hdds.ratis.conf.RatisClientConfig;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.security.x509.SecurityConfig;
 import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient;
@@ -78,6 +79,7 @@ import io.opentracing.Span;
 import io.opentracing.util.GlobalTracer;
 import org.apache.ratis.RaftConfigKeys;
 import org.apache.ratis.conf.RaftProperties;
+import org.apache.ratis.datastream.SupportedDataStreamType;
 import org.apache.ratis.grpc.GrpcConfigKeys;
 import org.apache.ratis.grpc.GrpcFactory;
 import org.apache.ratis.grpc.GrpcTlsConfig;
@@ -124,6 +126,7 @@ public final class XceiverServerRatis implements XceiverServerSpi {
   }
 
   private int port;
+  private int dataStreamPort;
   private final RaftServer server;
   private final List<ThreadPoolExecutor> chunkExecutors;
   private final ContainerDispatcher dispatcher;
@@ -149,7 +152,7 @@ public final class XceiverServerRatis implements XceiverServerSpi {
    */
   private EnumMap<StorageType, List<String>> ratisVolumeMap;
 
-  private XceiverServerRatis(DatanodeDetails dd, int port,
+  private XceiverServerRatis(DatanodeDetails dd, int port, int dataStreamPort,
       ContainerDispatcher dispatcher, ContainerController containerController,
       StateContext context, GrpcTlsConfig tlsConfig, ConfigurationSource conf)
       throws IOException {
@@ -157,6 +160,7 @@ public final class XceiverServerRatis implements XceiverServerSpi {
     Objects.requireNonNull(dd, "id == null");
     datanodeDetails = dd;
     this.port = port;
+    this.dataStreamPort = dataStreamPort;
     RaftProperties serverProperties = newRaftProperties();
     this.context = context;
     this.dispatcher = dispatcher;
@@ -208,6 +212,19 @@ public final class XceiverServerRatis implements XceiverServerSpi {
 
     // set the configs enable and set the stateMachineData sync timeout
     RaftServerConfigKeys.Log.StateMachineData.setSync(properties, true);
+
+    // set the datastream config
+    NettyConfigKeys.DataStream.setPort(properties, dataStreamPort);
+    RaftConfigKeys.DataStream.setType(properties, SupportedDataStreamType.NETTY);
+    int dataStreamAsyncRequestThreadPoolSize = conf.getInt(
+        OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_REQUEST_THREADS,
+        OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_REQUEST_THREADS_DEFAULT);
+    RaftServerConfigKeys.DataStream.setAsyncRequestThreadPoolSize(properties, dataStreamAsyncRequestThreadPoolSize);
+    int dataStreamWriteRequestThreadPoolSize = conf.getInt(
+        OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_WRITE_THREADS,
+        OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_WRITE_THREADS_DEFAULT);
+    RaftServerConfigKeys.DataStream.setAsyncWriteThreadPoolSize(properties, dataStreamWriteRequestThreadPoolSize);
+
     timeUnit = OzoneConfigKeys.
         DFS_CONTAINER_RATIS_STATEMACHINEDATA_SYNC_TIMEOUT_DEFAULT.getUnit();
     duration = conf.getTimeDuration(
@@ -427,7 +444,11 @@ public final class XceiverServerRatis implements XceiverServerSpi {
     GrpcTlsConfig tlsConfig = createTlsServerConfigForDN(
           new SecurityConfig(ozoneConf), caClient);
 
-    return new XceiverServerRatis(datanodeDetails, localPort, dispatcher,
+    int dataStreamPort = ozoneConf.getInt(
+        OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_IPC_PORT,
+        OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_IPC_PORT_DEFAULT);
+
+    return new XceiverServerRatis(datanodeDetails, localPort, dataStreamPort, dispatcher,
         containerController, context, tlsConfig, ozoneConf);
   }
 
@@ -473,6 +494,10 @@ public final class XceiverServerRatis implements XceiverServerSpi {
       datanodeDetails.setPort(DatanodeDetails
           .newPort(DatanodeDetails.Port.Name.RATIS,
               realPort));
+
+      datanodeDetails.setPort(DatanodeDetails
+          .newPort(DatanodeDetails.Port.Name.DATASTREAM,
+              dataStreamPort));
 
       isStarted = true;
     }
