@@ -26,30 +26,28 @@ import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.BatchOperationHandler;
 import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import org.apache.ratis.thirdparty.io.netty.util.internal.ReadOnlyIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_BLOCK_DELETION_MAX_RETRY;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT;
 
-public class DeletedBlockLogStateManagerV2ImplV2
+public class DeletedBlockLogStateManagerImplV2
     implements DeletedBlockLogStateManagerV2 {
 
   public static final Logger LOG =
-      LoggerFactory.getLogger(DeletedBlockLogStateManagerV2ImplV2.class);
+      LoggerFactory.getLogger(DeletedBlockLogStateManagerImplV2.class);
 
   private final Table<Long, DeletedBlocksTransaction> deletedTable;
   private final BatchOperationHandler batchHandler;
   private final int maxRetry;
 
-  public DeletedBlockLogStateManagerV2ImplV2(
+  public DeletedBlockLogStateManagerImplV2(
       Configuration conf,
       Table<Long, DeletedBlocksTransaction> deletedTable,
       BatchOperationHandler batchHandler) {
@@ -153,7 +151,7 @@ public class DeletedBlockLogStateManagerV2ImplV2
       Preconditions.checkNotNull(table);
       Preconditions.checkNotNull(table);
 
-      final DeletedBlockLogStateManagerV2 impl = new DeletedBlockLogStateManagerV2ImplV2(
+      final DeletedBlockLogStateManagerV2 impl = new DeletedBlockLogStateManagerImplV2(
           conf, table, batchHandler);
 
       final SCMHAInvocationHandler invocationHandler =

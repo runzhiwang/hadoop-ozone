@@ -34,4 +34,5 @@ public interface DeletedBlockLogStateManagerV2 {
   @Replicate
   void increaseRetryCountOfTransactionDB(List<Long> txIDs);
 
+
 }

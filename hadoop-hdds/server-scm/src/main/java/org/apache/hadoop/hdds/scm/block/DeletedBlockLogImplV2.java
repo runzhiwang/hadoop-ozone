@@ -30,7 +30,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto.DeleteBlockTransactionResult;
@@ -77,10 +77,11 @@ public class DeletedBlockLogImplV2
   private final Lock lock;
   // Maps txId to set of DNs which are successful in committing the transaction
   private Map<Long, Set<UUID>> transactionToDNsCommitMap;
+  private final DeletedBlockLogStateManagerV2 deletedBlockLogStateManagerV2;
 
-  public DeletedBlockLogImplV2(ConfigurationSource conf,
+  public DeletedBlockLogImplV2(Configuration conf,
                              ContainerManagerV2 containerManager,
-                             SCMMetadataStore scmMetadataStore) {
+                             SCMMetadataStore scmMetadataStore) throws IOException {
     maxRetry = conf.getInt(OZONE_SCM_BLOCK_DELETION_MAX_RETRY,
         OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT);
     this.containerManager = containerManager;
@@ -92,6 +93,12 @@ public class DeletedBlockLogImplV2
 
     // maps transaction to dns which have committed it.
     transactionToDNsCommitMap = new ConcurrentHashMap<>();
+    this.deletedBlockLogStateManagerV2 = DeletedBlockLogStateManagerImplV2.newBuilder()
+        .setConfiguration(conf)
+        .setDeletedBlocksTable(scmMetadataStore.getDeletedBlocksTXTable())
+        .setRatisServer(null)
+        .setBatchOperationHandler(scmMetadataStore.getBatchHandler())
+        .build();
   }
 
 
