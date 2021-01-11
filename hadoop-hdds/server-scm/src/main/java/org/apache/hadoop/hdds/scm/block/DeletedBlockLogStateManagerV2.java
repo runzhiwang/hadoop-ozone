@@ -19,7 +19,6 @@ package org.apache.hadoop.hdds.scm.block;
 
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.scm.metadata.Replicate;
-import org.apache.ratis.thirdparty.io.netty.util.internal.ReadOnlyIterator;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +31,7 @@ public interface DeletedBlockLogStateManagerV2 {
   void removeTransactionsFromDB(List<Long> txIDs) throws IOException;
 
   @Replicate
-  void increaseRetryCountOfTransactionDB(List<Long> txIDs);
+  void increaseRetryCountOfTransactionDB(List<Long> txIDs) throws IOException;
 
 
 }

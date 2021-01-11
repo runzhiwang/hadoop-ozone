@@ -18,7 +18,7 @@
 package org.apache.hadoop.hdds.scm.block;
 
 import com.google.common.base.Preconditions;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.scm.ha.SCMHAInvocationHandler;
@@ -26,7 +26,6 @@ import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.BatchOperationHandler;
 import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.ratis.thirdparty.io.netty.util.internal.ReadOnlyIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +47,7 @@ public class DeletedBlockLogStateManagerImplV2
   private final int maxRetry;
 
   public DeletedBlockLogStateManagerImplV2(
-      Configuration conf,
+      ConfigurationSource conf,
       Table<Long, DeletedBlocksTransaction> deletedTable,
       BatchOperationHandler batchHandler) {
     this.maxRetry = conf.getInt(OZONE_SCM_BLOCK_DELETION_MAX_RETRY,
@@ -76,40 +75,38 @@ public class DeletedBlockLogStateManagerImplV2
   }
 
   @Override
-  public void increaseRetryCountOfTransactionDB(List<Long> txIDs) {
+  public void increaseRetryCountOfTransactionDB(List<Long> txIDs) throws IOException {
+    BatchOperation batch = batchHandler.initBatchOperation();
     for (Long txID : txIDs) {
-      try {
-        DeletedBlocksTransaction block =
-            deletedTable.get(txID);
-        if (block == null) {
-          if (LOG.isDebugEnabled()) {
-            // This can occur due to race condition between retry and old
-            // service task where old task removes the transaction and the new
-            // task is resending
-            LOG.debug("Deleted TXID {} not found.", txID);
-          }
-          continue;
+      DeletedBlocksTransaction block =
+          deletedTable.get(txID);
+      if (block == null) {
+        if (LOG.isDebugEnabled()) {
+          // This can occur due to race condition between retry and old
+          // service task where old task removes the transaction and the new
+          // task is resending
+          LOG.debug("Deleted TXID {} not found.", txID);
         }
-        DeletedBlocksTransaction.Builder builder = block.toBuilder();
-        int currentCount = block.getCount();
-        if (currentCount > -1) {
-          builder.setCount(++currentCount);
-        }
-        // if the retry time exceeds the maxRetry value
-        // then set the retry value to -1, stop retrying, admins can
-        // analyze those blocks and purge them manually by SCMCli.
-        if (currentCount > maxRetry) {
-          builder.setCount(-1);
-        }
-        deletedTable.put(txID,
-            builder.build());
-      } catch (IOException ex) {
-        LOG.warn("Cannot increase count for txID " + txID, ex);
-        // We do not throw error here, since we don't want to abort the loop.
-        // Just log and continue processing the rest of txids.
+        continue;
       }
+      DeletedBlocksTransaction.Builder builder = block.toBuilder();
+      int currentCount = block.getCount();
+      if (currentCount > -1) {
+        builder.setCount(++currentCount);
+      }
+      // if the retry time exceeds the maxRetry value
+      // then set the retry value to -1, stop retrying, admins can
+      // analyze those blocks and purge them manually by SCMCli.
+      if (currentCount > maxRetry) {
+        builder.setCount(-1);
+      }
+      deletedTable.putWithBatch(batch, txID, builder.build());
     }
+
+    batchHandler.commitBatchOperation(batch);
   }
+
+
 
   public static Builder newBuilder() {
     return new Builder();
@@ -119,12 +116,12 @@ public class DeletedBlockLogStateManagerImplV2
    * Builder for ContainerStateManager.
    */
   public static class Builder {
-    private Configuration conf;
+    private ConfigurationSource conf;
     private SCMRatisServer scmRatisServer;
     private Table<Long, DeletedBlocksTransaction> table;
     private BatchOperationHandler batchHandler;
 
-    public Builder setConfiguration(final Configuration config) {
+    public Builder setConfiguration(final ConfigurationSource config) {
       conf = config;
       return this;
     }
@@ -145,7 +142,7 @@ public class DeletedBlockLogStateManagerImplV2
       return this;
     }
 
-    public DeletedBlockLogStateManagerV2 build() throws IOException {
+    public DeletedBlockLogStateManagerV2 build() {
       Preconditions.checkNotNull(conf);
       Preconditions.checkNotNull(scmRatisServer);
       Preconditions.checkNotNull(table);
