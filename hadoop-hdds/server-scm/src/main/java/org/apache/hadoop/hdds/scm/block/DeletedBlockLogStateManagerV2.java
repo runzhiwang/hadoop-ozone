@@ -6,42 +6,32 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.hadoop.hdds.scm.block;
 
-option java_package = "org.apache.hadoop.hdds.protocol.proto";
-option java_outer_classname = "SCMRatisProtocol";
-option java_generate_equals_and_hash = true;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
+import org.apache.hadoop.hdds.scm.metadata.Replicate;
+import org.apache.ratis.thirdparty.io.netty.util.internal.ReadOnlyIterator;
 
-enum RequestType {
-    PIPELINE = 1;
-    CONTAINER = 2;
-    DELETE_BLOCK = 3;
-}
+import java.io.IOException;
+import java.util.List;
 
-message Method {
-    required string name = 1;
-    repeated MethodArgument args = 2;
-}
+public interface DeletedBlockLogStateManagerV2 {
+  @Replicate
+  void addTransactionsToDB(List<DeletedBlocksTransaction> txns) throws IOException;
 
-message MethodArgument {
-    required string type = 1;
-    required bytes value = 2;
-}
+  @Replicate
+  void removeTransactionsFromDB(List<Long> txIDs) throws IOException;
 
-message SCMRatisRequestProto {
-    required RequestType type = 1;
-    required Method method = 2;
-}
+  @Replicate
+  void increaseRetryCountOfTransactionDB(List<Long> txIDs);
 
-message SCMRatisResponseProto {
-    required string type = 2;
-    required bytes value = 3;
 }
