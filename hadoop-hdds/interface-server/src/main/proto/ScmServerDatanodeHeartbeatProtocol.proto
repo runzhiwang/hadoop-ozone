@@ -337,6 +337,10 @@ message DeletedBlocksTransaction {
   required int32 count = 4;
 }
 
+message DeletedBlocksTransactionIDs {
+  repeated int64 txID = 1;
+}
+
 // ACK message datanode sent to SCM, contains the result of
 // block deletion transactions.
 message ContainerBlocksDeletionACKProto {

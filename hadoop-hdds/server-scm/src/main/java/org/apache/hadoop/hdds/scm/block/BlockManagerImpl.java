@@ -101,8 +101,10 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
     mxBean = MBeans.register("BlockManager", "BlockManagerImpl", this);
 
     // SCM block deleting transaction log and deleting service.
-    deletedBlockLog = new DeletedBlockLogImpl(conf, scm.getContainerManager(),
-        scm.getScmMetadataStore());
+    deletedBlockLog = new DeletedBlockLogImplV2(conf, scm.getContainerManager(),
+        scm.getScmHAManager().getRatisServer(),
+        scm.getScmMetadataStore().getDeletedBlocksTXTable(),
+        scm.getScmMetadataStore().getBatchHandler());
     Duration svcInterval = conf.getObject(
             ScmConfig.class).getBlockDeletionInterval();
     long serviceTimeout =

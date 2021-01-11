@@ -28,6 +28,7 @@ import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerV2;
 import org.apache.hadoop.hdds.scm.container.ContainerReplica;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
+import org.apache.hadoop.hdds.scm.ha.MockSCMHAManager;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
@@ -77,7 +78,7 @@ import static org.mockito.Mockito.when;
  */
 public class TestDeletedBlockLog {
 
-  private static DeletedBlockLogImpl deletedBlockLog;
+  private static DeletedBlockLogImplV2 deletedBlockLog;
   private static final int BLOCKS_PER_TXN = 5;
   private OzoneConfiguration conf;
   private File testDir;
@@ -94,8 +95,10 @@ public class TestDeletedBlockLog {
     conf.set(HddsConfigKeys.OZONE_METADATA_DIRS, testDir.getAbsolutePath());
     scm = TestUtils.getScm(conf);
     containerManager = Mockito.mock(ContainerManagerV2.class);
-    deletedBlockLog = new DeletedBlockLogImpl(conf, containerManager,
-        scm.getScmMetadataStore());
+    deletedBlockLog = new DeletedBlockLogImplV2(conf, containerManager,
+        MockSCMHAManager.getInstance(true).getRatisServer(),
+        scm.getScmMetadataStore().getDeletedBlocksTXTable(),
+        scm.getScmMetadataStore().getBatchHandler());
     dnList = new ArrayList<>(3);
     setupContainerManager();
   }
@@ -318,8 +321,10 @@ public class TestDeletedBlockLog {
     // close db and reopen it again to make sure
     // transactions are stored persistently.
     deletedBlockLog.close();
-    deletedBlockLog = new DeletedBlockLogImpl(conf, containerManager,
-        scm.getScmMetadataStore());
+    deletedBlockLog = new DeletedBlockLogImplV2(conf, containerManager,
+        MockSCMHAManager.getInstance(true).getRatisServer(),
+        scm.getScmMetadataStore().getDeletedBlocksTXTable(),
+        scm.getScmMetadataStore().getBatchHandler());
     List<DeletedBlocksTransaction> blocks =
         getTransactions(BLOCKS_PER_TXN * 10);
     Assert.assertEquals(10, blocks.size());
