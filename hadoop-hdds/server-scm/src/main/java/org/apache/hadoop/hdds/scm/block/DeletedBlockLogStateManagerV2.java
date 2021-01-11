@@ -17,21 +17,19 @@
  */
 package org.apache.hadoop.hdds.scm.block;
 
-import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransactionIDs;
 import org.apache.hadoop.hdds.scm.metadata.Replicate;
 
 import java.io.IOException;
-import java.util.List;
 
 public interface DeletedBlockLogStateManagerV2 {
   @Replicate
-  void addTransactionsToDB(List<DeletedBlocksTransaction> txns) throws IOException;
+  void addTransactionsToDB(DeleteBlocksCommandProto txs) throws IOException;
 
   @Replicate
-  void removeTransactionsFromDB(List<Long> txIDs) throws IOException;
+  void removeTransactionsFromDB(DeletedBlocksTransactionIDs txIDs) throws IOException;
 
   @Replicate
-  void increaseRetryCountOfTransactionDB(List<Long> txIDs) throws IOException;
-
-
+  void increaseRetryCountOfTransactionDB(DeletedBlocksTransactionIDs txIDs) throws IOException;
 }

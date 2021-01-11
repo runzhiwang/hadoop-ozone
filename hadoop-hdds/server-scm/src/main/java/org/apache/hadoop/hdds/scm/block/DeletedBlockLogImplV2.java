@@ -32,9 +32,11 @@ import java.util.stream.Collectors;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto.DeleteBlockTransactionResult;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransactionIDs;
 import org.apache.hadoop.hdds.scm.command.CommandStatusReportHandler.DeleteBlockStatus;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerV2;
@@ -136,7 +138,9 @@ public class DeletedBlockLogImplV2
   public void incrementCount(List<Long> txIDs) throws IOException {
     lock.lock();
     try {
-      deletedBlockLogStateManagerV2.increaseRetryCountOfTransactionDB(txIDs);
+      DeletedBlocksTransactionIDs transactionIDs =
+          DeletedBlocksTransactionIDs.newBuilder().addAllTxID(txIDs).build();
+      deletedBlockLogStateManagerV2.increaseRetryCountOfTransactionDB(transactionIDs);
     }
     finally {
       lock.unlock();
@@ -168,7 +172,8 @@ public class DeletedBlockLogImplV2
       List<DeleteBlockTransactionResult> transactionResults, UUID dnID) {
     lock.lock();
     try {
-      List<Long> txIDs = new ArrayList<>();
+      DeletedBlocksTransactionIDs.Builder transactionIDs =
+          DeletedBlocksTransactionIDs.newBuilder();
       Set<UUID> dnsWithCommittedTxn;
       for (DeleteBlockTransactionResult transactionResult :
           transactionResults) {
@@ -211,7 +216,7 @@ public class DeletedBlockLogImplV2
               if (LOG.isDebugEnabled()) {
                 LOG.debug("Purging txId={} from block deletion log", txID);
               }
-              txIDs.add(txID);
+              transactionIDs.addTxID(txID);
             }
           }
           if (LOG.isDebugEnabled()) {
@@ -224,10 +229,10 @@ public class DeletedBlockLogImplV2
         }
       }
       try {
-        deletedBlockLogStateManagerV2.removeTransactionsFromDB(txIDs);
+        deletedBlockLogStateManagerV2.removeTransactionsFromDB(transactionIDs.build());
       } catch (IOException e) {
         LOG.warn("Could not commit delete block transactions: " +
-            txIDs, e);
+            transactionIDs.build().getTxIDList(), e);
       }
     } finally {
       lock.unlock();
@@ -310,7 +315,12 @@ public class DeletedBlockLogImplV2
         txs.add(tx);
       }
 
-      deletedBlockLogStateManagerV2.addTransactionsToDB(txs);
+      StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto proto =
+          StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto.newBuilder()
+              .addAllDeletedBlocksTransactions(txs).setCmdId(-1)
+              .build();
+
+      deletedBlockLogStateManagerV2.addTransactionsToDB(proto);
     } finally {
       lock.unlock();
     }
@@ -352,8 +362,7 @@ public class DeletedBlockLogImplV2
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
                scmMetadataStore.getDeletedBlocksTXTable().iterator()) {
         int numBlocksAdded = 0;
-        List<Long> txnsToBePurged =
-            new ArrayList<>();
+        DeletedBlocksTransactionIDs.Builder builder = DeletedBlocksTransactionIDs.newBuilder();
         while (iter.hasNext() && numBlocksAdded < blockDeletionLimit) {
           Table.KeyValue<Long, DeletedBlocksTransaction> keyValue = iter.next();
           DeletedBlocksTransaction txn = keyValue.getValue();
@@ -369,26 +378,14 @@ public class DeletedBlockLogImplV2
           } catch (ContainerNotFoundException ex) {
             LOG.warn("Container: " + id + " was not found for the transaction: "
                 + txn);
-            txnsToBePurged.add(txn.getTxID());
+            builder.addTxID(txn.getTxID());
           }
         }
-        deletedBlockLogStateManagerV2.removeTransactionsFromDB(txnsToBePurged);
+        deletedBlockLogStateManagerV2.removeTransactionsFromDB(builder.build());
       }
       return transactions;
     } finally {
       lock.unlock();
-    }
-  }
-
-  public void purgeTransactions(List<DeletedBlocksTransaction> txnsToBePurged)
-      throws IOException {
-    try (BatchOperation batch = scmMetadataStore.getBatchHandler()
-        .initBatchOperation()) {
-      for (int i = 0; i < txnsToBePurged.size(); i++) {
-        scmMetadataStore.getDeletedBlocksTXTable()
-            .deleteWithBatch(batch, txnsToBePurged.get(i).getTxID());
-      }
-      scmMetadataStore.getBatchHandler().commitBatchOperation(batch);
     }
   }
 

@@ -20,7 +20,9 @@ package org.apache.hadoop.hdds.scm.block;
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransactionIDs;
 import org.apache.hadoop.hdds.scm.ha.SCMHAInvocationHandler;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
@@ -57,27 +59,27 @@ public class DeletedBlockLogStateManagerImplV2
   }
 
   @Override
-  public void addTransactionsToDB(List<DeletedBlocksTransaction> txs) throws IOException {
+  public void addTransactionsToDB(DeleteBlocksCommandProto txs) throws IOException {
     BatchOperation batch = batchHandler.initBatchOperation();
-    for (DeletedBlocksTransaction tx : txs) {
+    for (DeletedBlocksTransaction tx : txs.getDeletedBlocksTransactionsList()) {
       deletedTable.putWithBatch(batch, tx.getTxID(), tx);
     }
     batchHandler.commitBatchOperation(batch);
   }
 
   @Override
-  public void removeTransactionsFromDB(List<Long> txIDs) throws IOException {
+  public void removeTransactionsFromDB(DeletedBlocksTransactionIDs txIDs) throws IOException {
     BatchOperation batch = batchHandler.initBatchOperation();
-    for (Long txID : txIDs) {
+    for (Long txID : txIDs.getTxIDList()) {
       deletedTable.deleteWithBatch(batch, txID);
     }
     batchHandler.commitBatchOperation(batch);
   }
 
   @Override
-  public void increaseRetryCountOfTransactionDB(List<Long> txIDs) throws IOException {
+  public void increaseRetryCountOfTransactionDB(DeletedBlocksTransactionIDs txIDs) throws IOException {
     BatchOperation batch = batchHandler.initBatchOperation();
-    for (Long txID : txIDs) {
+    for (Long txID : txIDs.getTxIDList()) {
       DeletedBlocksTransaction block =
           deletedTable.get(txID);
       if (block == null) {
