@@ -25,9 +25,11 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransactionIDs;
 import org.apache.hadoop.hdds.scm.ha.SCMHAInvocationHandler;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
+import org.apache.hadoop.hdds.utils.MetadataKeyFilters.MetadataKeyFilter;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.BatchOperationHandler;
 import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,89 @@ public class DeletedBlockLogStateManagerImplV2
         OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT);
     this.deletedTable = deletedTable;
     this.batchHandler = batchHandler;
+  }
+
+  public Table<Long, DeletedBlocksTransaction> getReadOnlyDeleteTable() {
+    return new Table<Long, DeletedBlocksTransaction>() {
+      @Override
+      public void close() throws Exception {
+        throw new UnsupportedOperationException("read-only");
+      }
+
+      @Override
+      public void put(
+          Long txID, DeletedBlocksTransaction deletedBlocksTransaction)
+          throws IOException {
+        throw new UnsupportedOperationException("read-only");
+      }
+
+      @Override
+      public void putWithBatch(
+          BatchOperation batch, Long txID,
+          DeletedBlocksTransaction deletedBlocksTransaction)
+          throws IOException {
+        throw new UnsupportedOperationException("read-only");
+      }
+
+      @Override
+      public boolean isEmpty() throws IOException {
+        return deletedTable.isEmpty();
+      }
+
+      @Override
+      public boolean isExist(Long txID) throws IOException {
+        return deletedTable.isExist(txID);
+      }
+
+      @Override
+      public DeletedBlocksTransaction get(Long txID) throws IOException {
+        return deletedTable.get(txID);
+      }
+
+      @Override
+      public DeletedBlocksTransaction getIfExist(Long txID) throws IOException {
+        return deletedTable.getIfExist(txID);
+      }
+
+      @Override
+      public void delete(Long key) throws IOException {
+        throw new UnsupportedOperationException("read-only");
+      }
+
+      @Override
+      public void deleteWithBatch(BatchOperation batch, Long aLong) throws IOException {
+        throw new UnsupportedOperationException("read-only");
+      }
+
+      @Override
+      public TableIterator<Long, ? extends KeyValue<Long, DeletedBlocksTransaction>> iterator() {
+        return deletedTable.iterator();
+      }
+
+      @Override
+      public String getName() throws IOException {
+        return deletedTable.getName();
+      }
+
+      @Override
+      public long getEstimatedKeyCount() throws IOException {
+        return deletedTable.getEstimatedKeyCount();
+      }
+
+      @Override
+      public List<? extends KeyValue<Long, DeletedBlocksTransaction>> getRangeKVs(
+          Long startKey, int count, MetadataKeyFilter... filters)
+          throws IOException, IllegalArgumentException {
+        return deletedTable.getRangeKVs(startKey, count, filters);
+      }
+
+      @Override
+      public List<? extends KeyValue<Long, DeletedBlocksTransaction>> getSequentialRangeKVs(
+          Long startKey, int count, MetadataKeyFilter... filters)
+          throws IOException, IllegalArgumentException {
+        return deletedTable.getSequentialRangeKVs(startKey, count, filters);
+      }
+    };
   }
 
   @Override

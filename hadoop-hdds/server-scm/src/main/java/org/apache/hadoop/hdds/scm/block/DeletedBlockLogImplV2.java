@@ -114,7 +114,7 @@ public class DeletedBlockLogImplV2
       final List<DeletedBlocksTransaction> failedTXs = Lists.newArrayList();
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
-               scmMetadataStore.getDeletedBlocksTXTable().iterator()) {
+               deletedBlockLogStateManagerV2.getReadOnlyDeleteTable().iterator()) {
         while (iter.hasNext()) {
           DeletedBlocksTransaction delTX = iter.next().getValue();
           if (delTX.getCount() == -1) {
@@ -281,7 +281,7 @@ public class DeletedBlockLogImplV2
       final AtomicInteger num = new AtomicInteger(0);
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
-               scmMetadataStore.getDeletedBlocksTXTable().iterator()) {
+               deletedBlockLogStateManagerV2.getReadOnlyDeleteTable().iterator()) {
         while (iter.hasNext()) {
           DeletedBlocksTransaction delTX = iter.next().getValue();
           if (delTX.getCount() > -1) {
@@ -360,7 +360,7 @@ public class DeletedBlockLogImplV2
           new DatanodeDeletedBlockTransactions();
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
-               scmMetadataStore.getDeletedBlocksTXTable().iterator()) {
+               deletedBlockLogStateManagerV2.getReadOnlyDeleteTable().iterator()) {
         int numBlocksAdded = 0;
         DeletedBlocksTransactionIDs.Builder builder = DeletedBlocksTransactionIDs.newBuilder();
         while (iter.hasNext() && numBlocksAdded < blockDeletionLimit) {

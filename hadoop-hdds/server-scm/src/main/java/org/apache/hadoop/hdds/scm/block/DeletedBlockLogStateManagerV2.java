@@ -17,9 +17,11 @@
  */
 package org.apache.hadoop.hdds.scm.block;
 
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransactionIDs;
 import org.apache.hadoop.hdds.scm.metadata.Replicate;
+import org.apache.hadoop.hdds.utils.db.Table;
 
 import java.io.IOException;
 
@@ -32,4 +34,6 @@ public interface DeletedBlockLogStateManagerV2 {
 
   @Replicate
   void increaseRetryCountOfTransactionDB(DeletedBlocksTransactionIDs txIDs) throws IOException;
+
+  Table<Long, DeletedBlocksTransaction> getReadOnlyDeleteTable();
 }
