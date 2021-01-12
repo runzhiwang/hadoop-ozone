@@ -79,7 +79,7 @@ public class DeletedBlockLogImplV2
   private final Lock lock;
   // Maps txId to set of DNs which are successful in committing the transaction
   private Map<Long, Set<UUID>> transactionToDNsCommitMap;
-  private final DeletedBlockLogStateManagerV2 deletedBlockLogStateManagerV2;
+  private final DeletedBlockLogStateManager deletedBlockLogStateManager;
 
   public DeletedBlockLogImplV2(ConfigurationSource conf,
       ContainerManagerV2 containerManager,
@@ -96,7 +96,7 @@ public class DeletedBlockLogImplV2
 
     // maps transaction to dns which have committed it.
     transactionToDNsCommitMap = new ConcurrentHashMap<>();
-    this.deletedBlockLogStateManagerV2 = DeletedBlockLogStateManagerImplV2
+    this.deletedBlockLogStateManager = DeletedBlockLogStateManagerImpl
         .newBuilder()
         .setConfiguration(conf)
         .setDeletedBlocksTable(deletedTable)
@@ -114,7 +114,7 @@ public class DeletedBlockLogImplV2
       final List<DeletedBlocksTransaction> failedTXs = Lists.newArrayList();
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
-               deletedBlockLogStateManagerV2.getReadOnlyIterator()) {
+               deletedBlockLogStateManager.getReadOnlyIterator()) {
         while (iter.hasNext()) {
           DeletedBlocksTransaction delTX = iter.next().getValue();
           if (delTX.getCount() == -1) {
@@ -140,7 +140,7 @@ public class DeletedBlockLogImplV2
     try {
       DeletedBlocksTransactionIDs transactionIDs =
           DeletedBlocksTransactionIDs.newBuilder().addAllTxID(txIDs).build();
-      deletedBlockLogStateManagerV2
+      deletedBlockLogStateManager
           .increaseRetryCountOfTransactionDB(transactionIDs);
     } finally {
       lock.unlock();
@@ -228,7 +228,7 @@ public class DeletedBlockLogImplV2
         }
       }
       try {
-        deletedBlockLogStateManagerV2
+        deletedBlockLogStateManager
             .removeTransactionsFromDB(transactionIDs.build());
       } catch (IOException e) {
         LOG.warn("Could not commit delete block transactions: " +
@@ -276,7 +276,7 @@ public class DeletedBlockLogImplV2
               .addDeletedBlocksTransactions(tx).setCmdId(-1)
               .build();
 
-      deletedBlockLogStateManagerV2.addTransactionsToDB(proto);
+      deletedBlockLogStateManager.addTransactionsToDB(proto);
     } finally {
       lock.unlock();
     }
@@ -289,7 +289,7 @@ public class DeletedBlockLogImplV2
       final AtomicInteger num = new AtomicInteger(0);
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
-               deletedBlockLogStateManagerV2.getReadOnlyIterator()) {
+               deletedBlockLogStateManager.getReadOnlyIterator()) {
         while (iter.hasNext()) {
           DeletedBlocksTransaction delTX = iter.next().getValue();
           if (delTX.getCount() > -1) {
@@ -330,7 +330,7 @@ public class DeletedBlockLogImplV2
               .addAllDeletedBlocksTransactions(txs).setCmdId(-1)
               .build();
 
-      deletedBlockLogStateManagerV2.addTransactionsToDB(proto);
+      deletedBlockLogStateManager.addTransactionsToDB(proto);
     } finally {
       lock.unlock();
     }
@@ -370,7 +370,7 @@ public class DeletedBlockLogImplV2
           new DatanodeDeletedBlockTransactions();
       try (TableIterator<Long,
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
-               deletedBlockLogStateManagerV2.getReadOnlyIterator()) {
+               deletedBlockLogStateManager.getReadOnlyIterator()) {
         int numBlocksAdded = 0;
         DeletedBlocksTransactionIDs.Builder builder =
             DeletedBlocksTransactionIDs.newBuilder();
@@ -392,7 +392,8 @@ public class DeletedBlockLogImplV2
             builder.addTxID(txn.getTxID());
           }
         }
-        deletedBlockLogStateManagerV2.removeTransactionsFromDB(builder.build());
+
+        deletedBlockLogStateManager.removeTransactionsFromDB(builder.build());
       }
       return transactions;
     } finally {

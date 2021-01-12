@@ -26,7 +26,7 @@ import org.apache.hadoop.hdds.utils.db.Table.KeyValue;
 
 import java.io.IOException;
 
-public interface DeletedBlockLogStateManagerV2 {
+public interface DeletedBlockLogStateManager {
   @Replicate
   void addTransactionsToDB(DeleteBlocksCommandProto txs) throws IOException;
 

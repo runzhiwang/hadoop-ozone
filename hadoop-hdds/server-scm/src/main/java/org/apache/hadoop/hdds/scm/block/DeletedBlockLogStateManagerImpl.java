@@ -39,17 +39,17 @@ import java.lang.reflect.Proxy;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_BLOCK_DELETION_MAX_RETRY;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT;
 
-public class DeletedBlockLogStateManagerImplV2
-    implements DeletedBlockLogStateManagerV2 {
+public class DeletedBlockLogStateManagerImpl
+    implements DeletedBlockLogStateManager {
 
   public static final Logger LOG =
-      LoggerFactory.getLogger(DeletedBlockLogStateManagerImplV2.class);
+      LoggerFactory.getLogger(DeletedBlockLogStateManagerImpl.class);
 
   private final Table<Long, DeletedBlocksTransaction> deletedTable;
   private final BatchOperationHandler batchHandler;
   private final int maxRetry;
 
-  public DeletedBlockLogStateManagerImplV2(
+  public DeletedBlockLogStateManagerImpl(
       ConfigurationSource conf,
       Table<Long, DeletedBlocksTransaction> deletedTable,
       BatchOperationHandler batchHandler) {
@@ -205,22 +205,22 @@ public class DeletedBlockLogStateManagerImplV2
       return this;
     }
 
-    public DeletedBlockLogStateManagerV2 build() {
+    public DeletedBlockLogStateManager build() {
       Preconditions.checkNotNull(conf);
       Preconditions.checkNotNull(scmRatisServer);
       Preconditions.checkNotNull(table);
       Preconditions.checkNotNull(table);
 
-      final DeletedBlockLogStateManagerV2 impl =
-          new DeletedBlockLogStateManagerImplV2(conf, table, batchHandler);
+      final DeletedBlockLogStateManager impl =
+          new DeletedBlockLogStateManagerImpl(conf, table, batchHandler);
 
       final SCMHAInvocationHandler invocationHandler =
           new SCMHAInvocationHandler(SCMRatisProtocol.RequestType.DELETE_BLOCK,
               impl, scmRatisServer);
 
-      return (DeletedBlockLogStateManagerV2) Proxy.newProxyInstance(
+      return (DeletedBlockLogStateManager) Proxy.newProxyInstance(
           SCMHAInvocationHandler.class.getClassLoader(),
-          new Class<?>[]{DeletedBlockLogStateManagerV2.class},
+          new Class<?>[]{DeletedBlockLogStateManager.class},
           invocationHandler);
     }
 
