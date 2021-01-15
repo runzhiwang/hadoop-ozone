@@ -41,7 +41,9 @@ import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -305,10 +307,12 @@ public class TestStorageContainerManager {
       // but unknown block IDs.
       for (Long containerID : containerBlocks.keySet()) {
         // Add 2 TXs per container.
-        delLog.addTransaction(containerID,
-            Collections.singletonList(RandomUtils.nextLong()));
-        delLog.addTransaction(containerID,
-            Collections.singletonList(RandomUtils.nextLong()));
+        Map<Long, List<Long>> deletedBlocks = new HashMap<>();
+        List<Long> blocks = new ArrayList<>();
+        blocks.add(RandomUtils.nextLong());
+        blocks.add(RandomUtils.nextLong());
+        deletedBlocks.put(containerID, blocks);
+        delLog.addTransactions(deletedBlocks);
       }
 
       // Verify a few TX gets created in the TX log.
@@ -437,9 +441,7 @@ public class TestStorageContainerManager {
         }
       });
     }
-    for (Map.Entry<Long, List<Long>> tx : containerBlocks.entrySet()) {
-      delLog.addTransaction(tx.getKey(), tx.getValue());
-    }
+    delLog.addTransactions(containerBlocks);
 
     return containerBlocks;
   }

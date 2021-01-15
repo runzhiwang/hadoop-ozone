@@ -213,9 +213,7 @@ public class TestDeletedBlockLog {
     int maxRetry = conf.getInt(OZONE_SCM_BLOCK_DELETION_MAX_RETRY, 20);
 
     // Create 30 TXs in the log.
-    for (Map.Entry<Long, List<Long>> entry : generateData(30).entrySet()){
-      deletedBlockLog.addTransaction(entry.getKey(), entry.getValue());
-    }
+    deletedBlockLog.addTransactions(generateData(30));
 
     // This will return all TXs, total num 30.
     List<DeletedBlocksTransaction> blocks =
@@ -242,9 +240,7 @@ public class TestDeletedBlockLog {
 
   @Test
   public void testCommitTransactions() throws Exception {
-    for (Map.Entry<Long, List<Long>> entry : generateData(50).entrySet()){
-      deletedBlockLog.addTransaction(entry.getKey(), entry.getValue());
-    }
+    deletedBlockLog.addTransactions(generateData(50));
     List<DeletedBlocksTransaction> blocks =
         getTransactions(20 * BLOCKS_PER_TXN);
     // Add an invalid txn.
@@ -282,10 +278,7 @@ public class TestDeletedBlockLog {
     for (int i = 0; i < 100; i++) {
       int state = random.nextInt(4);
       if (state == 0) {
-        for (Map.Entry<Long, List<Long>> entry :
-            generateData(10).entrySet()){
-          deletedBlockLog.addTransaction(entry.getKey(), entry.getValue());
-        }
+        deletedBlockLog.addTransactions(generateData(10));
         added += 10;
       } else if (state == 1) {
         blocks = getTransactions(20);
@@ -315,9 +308,7 @@ public class TestDeletedBlockLog {
 
   @Test
   public void testPersistence() throws Exception {
-    for (Map.Entry<Long, List<Long>> entry : generateData(50).entrySet()){
-      deletedBlockLog.addTransaction(entry.getKey(), entry.getValue());
-    }
+    deletedBlockLog.addTransactions(generateData(50));
     // close db and reopen it again to make sure
     // transactions are stored persistently.
     deletedBlockLog.close();
@@ -344,10 +335,11 @@ public class TestDeletedBlockLog {
     long containerID;
 
     // Creates {TXNum} TX in the log.
-    for (Map.Entry<Long, List<Long>> entry : generateData(txNum).entrySet()) {
+    Map<Long, List<Long>> deletedBlocks = generateData(txNum);
+    deletedBlockLog.addTransactions(deletedBlocks);
+    for (Map.Entry<Long, List<Long>> entry :deletedBlocks.entrySet()) {
       count++;
       containerID = entry.getKey();
-      deletedBlockLog.addTransaction(containerID, entry.getValue());
 
       if (count % 2 == 0) {
         mockContainerInfo(containerID, dnId1);
@@ -370,7 +362,9 @@ public class TestDeletedBlockLog {
     builder.setTxID(11);
     builder.setContainerID(containerID);
     builder.setCount(0);
-    deletedBlockLog.addTransaction(containerID, new LinkedList<>());
+    Map<Long, List<Long>> deletedBlocksMap = new HashMap<>();
+    deletedBlocksMap.put(containerID, new LinkedList<>());
+    deletedBlockLog.addTransactions(deletedBlocksMap);
 
     // get should return two transactions for the same container
     blocks = getTransactions(txNum);

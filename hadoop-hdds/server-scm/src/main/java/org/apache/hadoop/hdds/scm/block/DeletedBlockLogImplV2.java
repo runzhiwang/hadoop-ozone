@@ -253,35 +253,6 @@ public class DeletedBlockLogImplV2
     return false;
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * @param containerID - container ID.
-   * @param blocks      - blocks that belong to the same container.
-   * @throws IOException
-   */
-  @Override
-  public void addTransaction(long containerID, List<Long> blocks)
-      throws IOException {
-    lock.lock();
-    try {
-      // TODO(runzhiwang): Should use distributed sequence id generator
-      Long nextTXID = UniqueId.next();
-      DeletedBlocksTransaction tx =
-          constructNewTransaction(nextTXID, containerID, blocks);
-
-      StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto proto =
-          StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto
-              .newBuilder()
-              .addDeletedBlocksTransactions(tx).setCmdId(-1)
-              .build();
-
-      deletedBlockLogStateManager.addTransactionsToDB(proto);
-    } finally {
-      lock.unlock();
-    }
-  }
-
   @Override
   public int getNumOfValidTransactions() throws IOException {
     lock.lock();
