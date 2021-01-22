@@ -152,6 +152,10 @@ public class SCMStateMachine extends BaseStateMachine {
 
     LOG.info("current SCM becomes leader of term {}.", term);
     scm.getScmContext().updateIsLeaderAndTerm(true, term);
+    if (scm.getScmContext().isLeader()) {
+      scm.getScmContext().getDeletedBlockLog()
+          .clearTransactionToDNsCommitMap();
+    }
   }
 
   @Override

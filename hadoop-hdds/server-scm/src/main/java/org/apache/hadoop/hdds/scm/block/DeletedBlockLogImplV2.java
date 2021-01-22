@@ -43,6 +43,8 @@ import org.apache.hadoop.hdds.scm.container.ContainerManagerV2;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerNotFoundException;
 import org.apache.hadoop.hdds.scm.container.ContainerReplica;
+import org.apache.hadoop.hdds.scm.ha.DBTransactionBuffer;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.server.events.EventHandler;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
@@ -85,7 +87,7 @@ public class DeletedBlockLogImplV2
       ContainerManagerV2 containerManager,
       SCMRatisServer ratisServer,
       Table<Long, DeletedBlocksTransaction> deletedTable,
-      BatchOperationHandler batchOperationHandler) {
+      DBTransactionBuffer buffer) {
     maxRetry = conf.getInt(OZONE_SCM_BLOCK_DELETION_MAX_RETRY,
         OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT);
     this.containerManager = containerManager;
@@ -101,7 +103,7 @@ public class DeletedBlockLogImplV2
         .setConfiguration(conf)
         .setDeletedBlocksTable(deletedTable)
         .setRatisServer(ratisServer)
-        .setBatchOperationHandler(batchOperationHandler)
+        .setSCMDBTransactionBuffer(buffer)
         .build();
   }
 
@@ -138,10 +140,10 @@ public class DeletedBlockLogImplV2
   public void incrementCount(List<Long> txIDs) throws IOException {
     lock.lock();
     try {
-      DeletedBlocksTransactionIDs transactionIDs =
-          DeletedBlocksTransactionIDs.newBuilder().addAllTxID(txIDs).build();
+      ArrayList<Long> ids = new ArrayList<>();
+      ids.addAll(txIDs);
       deletedBlockLogStateManager
-          .increaseRetryCountOfTransactionDB(transactionIDs);
+          .increaseRetryCountOfTransactionDB(ids);
     } finally {
       lock.unlock();
     }
@@ -171,8 +173,7 @@ public class DeletedBlockLogImplV2
       List<DeleteBlockTransactionResult> transactionResults, UUID dnID) {
     lock.lock();
     try {
-      DeletedBlocksTransactionIDs.Builder transactionIDs =
-          DeletedBlocksTransactionIDs.newBuilder();
+      ArrayList<Long> txIDs = new ArrayList<>();
       Set<UUID> dnsWithCommittedTxn;
       for (DeleteBlockTransactionResult transactionResult :
           transactionResults) {
@@ -215,7 +216,7 @@ public class DeletedBlockLogImplV2
               if (LOG.isDebugEnabled()) {
                 LOG.debug("Purging txId={} from block deletion log", txID);
               }
-              transactionIDs.addTxID(txID);
+              txIDs.add(txID);
             }
           }
           if (LOG.isDebugEnabled()) {
@@ -229,10 +230,9 @@ public class DeletedBlockLogImplV2
       }
       try {
         deletedBlockLogStateManager
-            .removeTransactionsFromDB(transactionIDs.build());
+            .removeTransactionsFromDB(txIDs);
       } catch (IOException e) {
-        LOG.warn("Could not commit delete block transactions: " +
-            transactionIDs.build().getTxIDList(), e);
+        LOG.warn("Could not commit delete block transactions: " + txIDs, e);
       }
     } finally {
       lock.unlock();
@@ -274,6 +274,11 @@ public class DeletedBlockLogImplV2
     }
   }
 
+  @Override
+  public void clearTransactionToDNsCommitMap() {
+    transactionToDNsCommitMap.clear();
+  }
+
   /**
    * {@inheritDoc}
    *
@@ -285,7 +290,7 @@ public class DeletedBlockLogImplV2
       throws IOException {
     lock.lock();
     try {
-      List<DeletedBlocksTransaction> txs = new ArrayList<>();
+      ArrayList<DeletedBlocksTransaction> txs = new ArrayList<>();
       for (Map.Entry< Long, List< Long > > entry :
           containerBlocksMap.entrySet()) {
         // TODO(runzhiwang): Should use distributed sequence id generator
@@ -295,13 +300,7 @@ public class DeletedBlockLogImplV2
         txs.add(tx);
       }
 
-      StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto proto =
-          StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto
-              .newBuilder()
-              .addAllDeletedBlocksTransactions(txs).setCmdId(-1)
-              .build();
-
-      deletedBlockLogStateManager.addTransactionsToDB(proto);
+      deletedBlockLogStateManager.addTransactionsToDB(txs);
     } finally {
       lock.unlock();
     }
@@ -343,8 +342,7 @@ public class DeletedBlockLogImplV2
           ? extends Table.KeyValue<Long, DeletedBlocksTransaction>> iter =
                deletedBlockLogStateManager.getReadOnlyIterator()) {
         int numBlocksAdded = 0;
-        DeletedBlocksTransactionIDs.Builder builder =
-            DeletedBlocksTransactionIDs.newBuilder();
+        ArrayList<Long> txIDs = new ArrayList<>();
         while (iter.hasNext() && numBlocksAdded < blockDeletionLimit) {
           Table.KeyValue<Long, DeletedBlocksTransaction> keyValue = iter.next();
           DeletedBlocksTransaction txn = keyValue.getValue();
@@ -360,11 +358,11 @@ public class DeletedBlockLogImplV2
           } catch (ContainerNotFoundException ex) {
             LOG.warn("Container: " + id + " was not found for the transaction: "
                 + txn);
-            builder.addTxID(txn.getTxID());
+            txIDs.add(txn.getTxID());
           }
         }
 
-        deletedBlockLogStateManager.removeTransactionsFromDB(builder.build());
+        deletedBlockLogStateManager.removeTransactionsFromDB(txIDs);
       }
       return transactions;
     } finally {

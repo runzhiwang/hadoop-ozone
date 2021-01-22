@@ -104,4 +104,9 @@ public interface DeletedBlockLog extends Closeable {
    * @throws IOException
    */
   int getNumOfValidTransactions() throws IOException;
+
+  /**
+   * Clear the transactionToDNsCommitMap
+   */
+  void clearTransactionToDNsCommitMap();
 }

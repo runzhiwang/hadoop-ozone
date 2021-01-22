@@ -41,6 +41,7 @@ import org.apache.hadoop.hdds.scm.container.ContainerManagerV2;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineNotFoundException;
@@ -87,7 +88,8 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
    * @throws IOException
    */
   public BlockManagerImpl(final ConfigurationSource conf,
-                          final StorageContainerManager scm) {
+                          final StorageContainerManager scm,
+                          final SCMContext scmContext) {
     Objects.requireNonNull(scm, "SCM cannot be null");
     this.scm = scm;
     this.pipelineManager = scm.getPipelineManager();
@@ -104,7 +106,8 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
     deletedBlockLog = new DeletedBlockLogImplV2(conf, scm.getContainerManager(),
         scm.getScmHAManager().getRatisServer(),
         scm.getScmMetadataStore().getDeletedBlocksTXTable(),
-        scm.getScmMetadataStore().getBatchHandler());
+        scm.getScmHAManager().getDBTransactionBuffer());
+    scmContext.setDeletedBlockLog(deletedBlockLog);
     Duration svcInterval = conf.getObject(
             ScmConfig.class).getBlockDeletionInterval();
     long serviceTimeout =

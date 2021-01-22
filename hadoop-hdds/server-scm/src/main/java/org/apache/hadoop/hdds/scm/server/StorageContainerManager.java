@@ -475,7 +475,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     if (configurator.getScmBlockManager() != null) {
       scmBlockManager = configurator.getScmBlockManager();
     } else {
-      scmBlockManager = new BlockManagerImpl(conf, this);
+      scmBlockManager = new BlockManagerImpl(conf, this, scmContext);
     }
     if (configurator.getReplicationManager() != null) {
       replicationManager = configurator.getReplicationManager();

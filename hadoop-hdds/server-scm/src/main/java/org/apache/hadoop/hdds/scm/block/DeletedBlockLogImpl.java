@@ -281,6 +281,11 @@ public class DeletedBlockLogImpl
     }
   }
 
+  @Override
+  public void clearTransactionToDNsCommitMap() {
+    transactionToDNsCommitMap.clear();
+  }
+
   /**
    * {@inheritDoc}
    *

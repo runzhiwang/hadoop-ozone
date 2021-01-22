@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeleteBlocksCommandProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransactionIDs;
+import org.apache.hadoop.hdds.scm.ha.DBTransactionBuffer;
 import org.apache.hadoop.hdds.scm.ha.SCMHAInvocationHandler;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
@@ -35,6 +36,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_BLOCK_DELETION_MAX_RETRY;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT;
@@ -46,17 +49,17 @@ public class DeletedBlockLogStateManagerImpl
       LoggerFactory.getLogger(DeletedBlockLogStateManagerImpl.class);
 
   private final Table<Long, DeletedBlocksTransaction> deletedTable;
-  private final BatchOperationHandler batchHandler;
+  private final DBTransactionBuffer transactionBuffer;
   private final int maxRetry;
 
   public DeletedBlockLogStateManagerImpl(
       ConfigurationSource conf,
       Table<Long, DeletedBlocksTransaction> deletedTable,
-      BatchOperationHandler batchHandler) {
+      DBTransactionBuffer buffer) {
     this.maxRetry = conf.getInt(OZONE_SCM_BLOCK_DELETION_MAX_RETRY,
         OZONE_SCM_BLOCK_DELETION_MAX_RETRY_DEFAULT);
     this.deletedTable = deletedTable;
-    this.batchHandler = batchHandler;
+    this.transactionBuffer = buffer;
   }
 
   public TableIterator<Long, TypedTable.KeyValue<Long,
@@ -116,30 +119,27 @@ public class DeletedBlockLogStateManagerImpl
   }
 
   @Override
-  public void addTransactionsToDB(DeleteBlocksCommandProto txs)
+  public void addTransactionsToDB(ArrayList<DeletedBlocksTransaction> txs)
       throws IOException {
-    BatchOperation batch = batchHandler.initBatchOperation();
-    for (DeletedBlocksTransaction tx : txs.getDeletedBlocksTransactionsList()) {
-      deletedTable.putWithBatch(batch, tx.getTxID(), tx);
+    for (DeletedBlocksTransaction tx : txs) {
+      deletedTable.putWithBatch(
+          transactionBuffer.getCurrentBatchOperation(), tx.getTxID(), tx);
     }
-    batchHandler.commitBatchOperation(batch);
   }
 
   @Override
-  public void removeTransactionsFromDB(DeletedBlocksTransactionIDs txIDs)
+  public void removeTransactionsFromDB(ArrayList<Long> txIDs)
       throws IOException {
-    BatchOperation batch = batchHandler.initBatchOperation();
-    for (Long txID : txIDs.getTxIDList()) {
-      deletedTable.deleteWithBatch(batch, txID);
+    for (Long txID : txIDs) {
+      deletedTable.deleteWithBatch(
+          transactionBuffer.getCurrentBatchOperation(), txID);
     }
-    batchHandler.commitBatchOperation(batch);
   }
 
   @Override
   public void increaseRetryCountOfTransactionDB(
-      DeletedBlocksTransactionIDs txIDs) throws IOException {
-    BatchOperation batch = batchHandler.initBatchOperation();
-    for (Long txID : txIDs.getTxIDList()) {
+      ArrayList<Long> txIDs) throws IOException {
+    for (Long txID : txIDs) {
       DeletedBlocksTransaction block =
           deletedTable.get(txID);
       if (block == null) {
@@ -162,10 +162,9 @@ public class DeletedBlockLogStateManagerImpl
       if (currentCount > maxRetry) {
         builder.setCount(-1);
       }
-      deletedTable.putWithBatch(batch, txID, builder.build());
+      deletedTable.putWithBatch(
+          transactionBuffer.getCurrentBatchOperation(), txID, builder.build());
     }
-
-    batchHandler.commitBatchOperation(batch);
   }
 
 
@@ -181,7 +180,7 @@ public class DeletedBlockLogStateManagerImpl
     private ConfigurationSource conf;
     private SCMRatisServer scmRatisServer;
     private Table<Long, DeletedBlocksTransaction> table;
-    private BatchOperationHandler batchHandler;
+    private DBTransactionBuffer transactionBuffer;
 
     public Builder setConfiguration(final ConfigurationSource config) {
       conf = config;
@@ -199,9 +198,8 @@ public class DeletedBlockLogStateManagerImpl
       return this;
     }
 
-    public Builder setBatchOperationHandler(
-        final BatchOperationHandler handler) {
-      this.batchHandler = handler;
+    public Builder setSCMDBTransactionBuffer(DBTransactionBuffer buffer) {
+      this.transactionBuffer = buffer;
       return this;
     }
 
@@ -212,10 +210,10 @@ public class DeletedBlockLogStateManagerImpl
       Preconditions.checkNotNull(table);
 
       final DeletedBlockLogStateManager impl =
-          new DeletedBlockLogStateManagerImpl(conf, table, batchHandler);
+          new DeletedBlockLogStateManagerImpl(conf, table, transactionBuffer);
 
       final SCMHAInvocationHandler invocationHandler =
-          new SCMHAInvocationHandler(SCMRatisProtocol.RequestType.DELETE_BLOCK,
+          new SCMHAInvocationHandler(SCMRatisProtocol.RequestType.BLOCK,
               impl, scmRatisServer);
 
       return (DeletedBlockLogStateManager) Proxy.newProxyInstance(

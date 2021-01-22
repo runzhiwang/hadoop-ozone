@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdds.scm.ha;
 
 import com.google.common.base.Preconditions;
+import org.apache.hadoop.hdds.scm.block.DeletedBlockLog;
 import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager.SafeModeStatus;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.server.events.EventHandler;
@@ -62,6 +63,8 @@ public class SCMContext implements EventHandler<SafeModeStatus> {
   private final StorageContainerManager scm;
   private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
+  private DeletedBlockLog deletedBlockLog;
+
   SCMContext(boolean isLeader, long term,
              final SafeModeStatus safeModeStatus,
              final StorageContainerManager scm) {
@@ -69,6 +72,14 @@ public class SCMContext implements EventHandler<SafeModeStatus> {
     this.term = term;
     this.safeModeStatus = safeModeStatus;
     this.scm = scm;
+  }
+
+  public void setDeletedBlockLog(DeletedBlockLog deletedBlockLog) {
+    this.deletedBlockLog = deletedBlockLog;
+  }
+
+  public DeletedBlockLog getDeletedBlockLog() {
+    return deletedBlockLog;
   }
 
   /**
