@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,6 +38,8 @@ import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.ha.MockSCMHAManager;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
+import org.apache.hadoop.hdds.scm.ha.SCMServiceManager;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreImpl;
 import org.apache.hadoop.hdds.scm.pipeline.MockRatisPipelineProvider;
@@ -46,7 +47,6 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineProvider;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManagerV2Impl;
-import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager.SafeModeStatus;
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher;
 import org.apache.hadoop.hdds.server.events.EventHandler;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
@@ -71,6 +71,8 @@ import org.mockito.Mockito;
 public class TestSCMSafeModeManager {
 
   private static EventQueue queue;
+  private SCMContext scmContext;
+  private SCMServiceManager serviceManager;
   private SCMSafeModeManager scmSafeModeManager;
   private static OzoneConfiguration config;
   private List<ContainerInfo> containers = Collections.emptyList();
@@ -86,6 +88,8 @@ public class TestSCMSafeModeManager {
   @Before
   public void setUp() {
     queue = new EventQueue();
+    scmContext = new SCMContext.Builder().build();
+    serviceManager = new SCMServiceManager();
     config = new OzoneConfiguration();
     config.setBoolean(HddsConfigKeys.HDDS_SCM_SAFEMODE_PIPELINE_CREATION,
         false);
@@ -117,7 +121,7 @@ public class TestSCMSafeModeManager {
   @Test
   public void testSafeModeStateWithNullContainers() {
     new SCMSafeModeManager(config, Collections.emptyList(),
-        null, queue);
+        null, queue, serviceManager, scmContext);
   }
 
   private void testSafeMode(int numContainers) throws Exception {
@@ -129,7 +133,7 @@ public class TestSCMSafeModeManager {
       container.setState(HddsProtos.LifeCycleState.CLOSED);
     }
     scmSafeModeManager = new SCMSafeModeManager(
-        config, containers, null, queue);
+        config, containers, null, queue, serviceManager, scmContext);
 
     assertTrue(scmSafeModeManager.getInSafeMode());
     queue.fireEvent(SCMEvents.NODE_REGISTRATION_CONT_REPORT,
@@ -152,59 +156,6 @@ public class TestSCMSafeModeManager {
   }
 
   @Test
-  public void testDelayedEventNotification() throws Exception {
-
-    List<SafeModeStatus> delayedSafeModeEvents = new ArrayList<>();
-    List<SafeModeStatus> safeModeEvents = new ArrayList<>();
-
-    //given
-    EventQueue eventQueue = new EventQueue();
-    eventQueue.addHandler(SCMEvents.SAFE_MODE_STATUS,
-        (safeModeStatus, publisher) -> safeModeEvents.add(safeModeStatus));
-    eventQueue.addHandler(SCMEvents.DELAYED_SAFE_MODE_STATUS,
-        (safeModeStatus, publisher) -> delayedSafeModeEvents
-            .add(safeModeStatus));
-
-    OzoneConfiguration ozoneConfiguration = new OzoneConfiguration();
-    ozoneConfiguration
-        .setTimeDuration(HddsConfigKeys.HDDS_SCM_WAIT_TIME_AFTER_SAFE_MODE_EXIT,
-            3, TimeUnit.SECONDS);
-    ozoneConfiguration
-        .setBoolean(HddsConfigKeys.HDDS_SCM_SAFEMODE_PIPELINE_CREATION, false);
-
-    scmSafeModeManager = new SCMSafeModeManager(
-        ozoneConfiguration, containers, null, eventQueue);
-
-    //when
-    scmSafeModeManager.setInSafeMode(true);
-    scmSafeModeManager.setPreCheckComplete(true);
-
-    scmSafeModeManager.emitSafeModeStatus();
-    eventQueue.processAll(1000L);
-
-    //then
-    Assert.assertEquals(1, delayedSafeModeEvents.size());
-    Assert.assertEquals(1, safeModeEvents.size());
-
-    //when
-    scmSafeModeManager.setInSafeMode(false);
-    scmSafeModeManager.setPreCheckComplete(true);
-
-    scmSafeModeManager.emitSafeModeStatus();
-    eventQueue.processAll(1000L);
-
-    //then
-    Assert.assertEquals(2, safeModeEvents.size());
-    //delayed messages are not yet sent (unless JVM is paused for 3 seconds)
-    Assert.assertEquals(1, delayedSafeModeEvents.size());
-
-    //event will be triggered after 3 seconds (see previous config)
-    GenericTestUtils.waitFor(() -> delayedSafeModeEvents.size() == 2,
-        300,
-        6000);
-
-  }
-  @Test
   public void testSafeModeExitRule() throws Exception {
     containers = new ArrayList<>();
     int numContainers = 100;
@@ -215,7 +166,7 @@ public class TestSCMSafeModeManager {
       container.setState(HddsProtos.LifeCycleState.CLOSED);
     }
     scmSafeModeManager = new SCMSafeModeManager(
-        config, containers, null, queue);
+        config, containers, null, queue, serviceManager, scmContext);
 
     long cutOff = (long) Math.ceil(numContainers * config.getDouble(
         HddsConfigKeys.HDDS_SCM_SAFEMODE_THRESHOLD_PCT,
@@ -307,9 +258,11 @@ public class TestSCMSafeModeManager {
               MockSCMHAManager.getInstance(true),
               mockNodeManager,
               scmMetadataStore.getPipelineTable(),
-              queue);
+              queue,
+              scmContext,
+              serviceManager);
       scmSafeModeManager = new SCMSafeModeManager(
-          conf, containers, pipelineManager, queue);
+          conf, containers, pipelineManager, queue, serviceManager, scmContext);
       fail("testFailWithIncorrectValueForHealthyPipelinePercent");
     } catch (IllegalArgumentException ex) {
       GenericTestUtils.assertExceptionContains("value should be >= 0.0 and <=" +
@@ -330,9 +283,11 @@ public class TestSCMSafeModeManager {
               MockSCMHAManager.getInstance(true),
               mockNodeManager,
               scmMetadataStore.getPipelineTable(),
-              queue);
+              queue,
+              scmContext,
+              serviceManager);
       scmSafeModeManager = new SCMSafeModeManager(
-          conf, containers, pipelineManager, queue);
+          conf, containers, pipelineManager, queue, serviceManager, scmContext);
       fail("testFailWithIncorrectValueForOneReplicaPipelinePercent");
     } catch (IllegalArgumentException ex) {
       GenericTestUtils.assertExceptionContains("value should be >= 0.0 and <=" +
@@ -352,9 +307,11 @@ public class TestSCMSafeModeManager {
               MockSCMHAManager.getInstance(true),
               mockNodeManager,
               scmMetadataStore.getPipelineTable(),
-              queue);
+              queue,
+              scmContext,
+              serviceManager);
       scmSafeModeManager = new SCMSafeModeManager(
-          conf, containers, pipelineManager, queue);
+          conf, containers, pipelineManager, queue, serviceManager, scmContext);
       fail("testFailWithIncorrectValueForSafeModePercent");
     } catch (IllegalArgumentException ex) {
       GenericTestUtils.assertExceptionContains("value should be >= 0.0 and <=" +
@@ -381,13 +338,15 @@ public class TestSCMSafeModeManager {
             MockSCMHAManager.getInstance(true),
             mockNodeManager,
             scmMetadataStore.getPipelineTable(),
-            queue);
+            queue,
+            scmContext,
+            serviceManager);
     PipelineProvider mockRatisProvider =
         new MockRatisPipelineProvider(mockNodeManager,
             pipelineManager.getStateManager(), config);
     pipelineManager.setPipelineProvider(HddsProtos.ReplicationType.RATIS,
         mockRatisProvider);
-    pipelineManager.allowPipelineCreation();
+    pipelineManager.getBackgroundPipelineCreator().stop();
 
     for (int i = 0; i < pipelineCount; i++) {
       // Create pipeline
@@ -405,8 +364,8 @@ public class TestSCMSafeModeManager {
       container.setState(HddsProtos.LifeCycleState.CLOSED);
     }
 
-    scmSafeModeManager = new SCMSafeModeManager(conf, containers,
-        pipelineManager, queue);
+    scmSafeModeManager = new SCMSafeModeManager(
+        conf, containers, pipelineManager, queue, serviceManager, scmContext);
 
     assertTrue(scmSafeModeManager.getInSafeMode());
     testContainerThreshold(containers, 1.0);
@@ -516,9 +475,8 @@ public class TestSCMSafeModeManager {
     OzoneConfiguration conf = new OzoneConfiguration(config);
     conf.setBoolean(HddsConfigKeys.HDDS_SCM_SAFEMODE_ENABLED, false);
     PipelineManager pipelineManager = Mockito.mock(PipelineManager.class);
-    Mockito.doNothing().when(pipelineManager).startPipelineCreator();
-    scmSafeModeManager =
-        new SCMSafeModeManager(conf, containers, pipelineManager, queue);
+    scmSafeModeManager = new SCMSafeModeManager(
+        conf, containers, pipelineManager, queue, serviceManager, scmContext);
     assertFalse(scmSafeModeManager.getInSafeMode());
   }
 
@@ -550,7 +508,7 @@ public class TestSCMSafeModeManager {
     }
 
     scmSafeModeManager = new SCMSafeModeManager(
-        config, containers, null, queue);
+        config, containers, null, queue, serviceManager, scmContext);
 
     assertTrue(scmSafeModeManager.getInSafeMode());
 
@@ -574,7 +532,7 @@ public class TestSCMSafeModeManager {
     OzoneConfiguration conf = new OzoneConfiguration(config);
     conf.setInt(HddsConfigKeys.HDDS_SCM_SAFEMODE_MIN_DATANODE, numOfDns);
     scmSafeModeManager = new SCMSafeModeManager(
-        conf, containers, null, queue);
+        conf, containers, null, queue, serviceManager, scmContext);
 
     // Assert SCM is in Safe mode.
     assertTrue(scmSafeModeManager.getInSafeMode());
@@ -631,14 +589,15 @@ public class TestSCMSafeModeManager {
               MockSCMHAManager.getInstance(true),
               nodeManager,
               scmMetadataStore.getPipelineTable(),
-              queue);
+              queue,
+              scmContext,
+              serviceManager);
 
       PipelineProvider mockRatisProvider =
           new MockRatisPipelineProvider(nodeManager,
               pipelineManager.getStateManager(), config);
       pipelineManager.setPipelineProvider(HddsProtos.ReplicationType.RATIS,
           mockRatisProvider);
-      pipelineManager.allowPipelineCreation();
 
       Pipeline pipeline = pipelineManager.createPipeline(
           HddsProtos.ReplicationType.RATIS,
@@ -648,7 +607,8 @@ public class TestSCMSafeModeManager {
       MockRatisPipelineProvider.markPipelineHealthy(pipeline);
 
       scmSafeModeManager = new SCMSafeModeManager(
-          config, containers, pipelineManager, queue);
+          config, containers, pipelineManager, queue, serviceManager,
+          scmContext);
 
       queue.fireEvent(SCMEvents.NODE_REGISTRATION_CONT_REPORT,
           HddsTestUtils.createNodeRegistrationContainerReport(containers));
@@ -694,7 +654,9 @@ public class TestSCMSafeModeManager {
             MockSCMHAManager.getInstance(true),
             nodeManager,
             scmMetadataStore.getPipelineTable(),
-            queue);
+            queue,
+            scmContext,
+            serviceManager);
 
     PipelineProvider mockRatisProvider =
         new MockRatisPipelineProvider(nodeManager,
@@ -705,7 +667,7 @@ public class TestSCMSafeModeManager {
     SafeModeEventHandler smHandler = new SafeModeEventHandler();
     queue.addHandler(SCMEvents.SAFE_MODE_STATUS, smHandler);
     scmSafeModeManager = new SCMSafeModeManager(
-        config, containers, pipelineManager, queue);
+        config, containers, pipelineManager, queue, serviceManager, scmContext);
 
     // Assert SCM is in Safe mode.
     assertTrue(scmSafeModeManager.getInSafeMode());
@@ -729,9 +691,6 @@ public class TestSCMSafeModeManager {
     Assert.assertEquals(1, smHandler.getInvokedCount());
     Assert.assertEquals(true, smHandler.getPreCheckComplete());
     Assert.assertEquals(true, smHandler.getIsInSafeMode());
-
-    // Create a pipeline and ensure safemode is exited.
-    pipelineManager.allowPipelineCreation();
 
     /* There is a race condition where the background pipeline creation
      * task creates the pipeline before the following create call.

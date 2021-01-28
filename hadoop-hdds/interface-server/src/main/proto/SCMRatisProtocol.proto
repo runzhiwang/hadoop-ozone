@@ -23,6 +23,7 @@ option java_generate_equals_and_hash = true;
 enum RequestType {
     PIPELINE = 1;
     CONTAINER = 2;
+    BLOCK = 3;
 }
 
 message Method {
@@ -33,6 +34,11 @@ message Method {
 message MethodArgument {
     required string type = 1;
     required bytes value = 2;
+}
+
+message ListArgument {
+    required string type = 1;
+    repeated bytes value = 2;
 }
 
 message SCMRatisRequestProto {

@@ -16,7 +16,6 @@
  */
 
 package org.apache.hadoop.hdds.scm.ha;
-
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol.RequestType;
@@ -46,17 +44,28 @@ public final class MockSCMHAManager implements SCMHAManager {
 
   private final SCMRatisServer ratisServer;
   private boolean isLeader;
+  private DBTransactionBuffer transactionBuffer;
 
   public static SCMHAManager getInstance(boolean isLeader) {
     return new MockSCMHAManager(isLeader);
+  }
+
+  public static SCMHAManager getInstance(boolean isLeader,
+      DBTransactionBuffer buffer) {
+    return new MockSCMHAManager(isLeader, buffer);
   }
 
   /**
    * Creates MockSCMHAManager instance.
    */
   private MockSCMHAManager(boolean isLeader) {
+    this(isLeader, new MockDBTransactionBuffer());
+  }
+
+  private MockSCMHAManager(boolean isLeader, DBTransactionBuffer buffer) {
     this.ratisServer = new MockRatisServer();
     this.isLeader = isLeader;
+    this.transactionBuffer = buffer;
   }
 
   @Override
@@ -65,11 +74,10 @@ public final class MockSCMHAManager implements SCMHAManager {
   }
 
   /**
-   * {@inheritDoc}
+   * Informs MockRatisServe to behaviour as a leader SCM or a follower SCM.
    */
-  @Override
-  public Optional<Long> isLeader() {
-    return isLeader ? Optional.of((long)0) : Optional.empty();
+  boolean isLeader() {
+    return isLeader;
   }
 
   public void setIsLeader(boolean isLeader) {
@@ -82,6 +90,11 @@ public final class MockSCMHAManager implements SCMHAManager {
   @Override
   public SCMRatisServer getRatisServer() {
     return ratisServer;
+  }
+
+  @Override
+  public DBTransactionBuffer getDBTransactionBuffer() {
+    return transactionBuffer;
   }
 
   /**
@@ -113,7 +126,7 @@ public final class MockSCMHAManager implements SCMHAManager {
       final RaftGroupMemberId raftId = RaftGroupMemberId.valueOf(
           RaftPeerId.valueOf("peer"), RaftGroupId.randomId());
       RaftClientReply reply;
-      if (isLeader().isPresent()) {
+      if (isLeader()) {
         try {
           final Message result = process(request);
           reply = RaftClientReply.newBuilder()

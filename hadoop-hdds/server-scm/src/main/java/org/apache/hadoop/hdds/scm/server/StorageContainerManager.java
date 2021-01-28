@@ -52,14 +52,16 @@ import org.apache.hadoop.hdds.scm.PipelineChoosePolicy;
 import org.apache.hadoop.hdds.scm.PlacementPolicy;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerImpl;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerV2;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManager;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManagerImpl;
+import org.apache.hadoop.hdds.scm.ha.SCMServiceManager;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.scm.ScmConfig;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.block.BlockManager;
 import org.apache.hadoop.hdds.scm.block.BlockManagerImpl;
-import org.apache.hadoop.hdds.scm.block.DeletedBlockLogImpl;
+import org.apache.hadoop.hdds.scm.block.DeletedBlockLogImplV2;
 import org.apache.hadoop.hdds.scm.block.PendingDeleteHandler;
 import org.apache.hadoop.hdds.scm.command.CommandStatusReportHandler;
 import org.apache.hadoop.hdds.scm.container.CloseContainerEventHandler;
@@ -69,7 +71,6 @@ import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerReportHandler;
 import org.apache.hadoop.hdds.scm.container.IncrementalContainerReportHandler;
 import org.apache.hadoop.hdds.scm.container.ReplicationManager;
-import org.apache.hadoop.hdds.scm.container.ReplicationManager.ReplicationManagerConfiguration;
 import org.apache.hadoop.hdds.scm.container.placement.algorithms.ContainerPlacementPolicyFactory;
 import org.apache.hadoop.hdds.scm.container.placement.algorithms.SCMContainerPlacementMetrics;
 import org.apache.hadoop.hdds.scm.container.placement.metrics.ContainerStat;
@@ -170,8 +171,11 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
 
   private SCMMetadataStore scmMetadataStore;
   private SCMHAManager scmHAManager;
+  private SCMContext scmContext;
 
   private final EventQueue eventQueue;
+  private final SCMServiceManager serviceManager;
+
   /*
    * HTTP endpoint for JMX access.
    */
@@ -269,7 +273,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     // Creates the SCM DBs or opens them if it exists.
     // A valid pointer to the store is required by all the other services below.
     initalizeMetadataStore(conf, configurator);
-
     // Authenticate SCM if security is enabled, this initialization can only
     // be done after the metadata store is initialized.
     if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
@@ -283,6 +286,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     }
 
     eventQueue = new EventQueue();
+    serviceManager = new SCMServiceManager();
+
     long watcherTimeout =
         conf.getTimeDuration(ScmConfigKeys.HDDS_SCM_WATCHER_TIMEOUT,
             HDDS_SCM_WATCHER_TIMEOUT_DEFAULT, TimeUnit.MILLISECONDS);
@@ -291,16 +296,18 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     initializeSystemManagers(conf, configurator);
 
     CloseContainerEventHandler closeContainerHandler =
-        new CloseContainerEventHandler(pipelineManager, containerManager);
+        new CloseContainerEventHandler(
+            pipelineManager, containerManager, scmContext);
     NodeReportHandler nodeReportHandler =
         new NodeReportHandler(scmNodeManager);
     PipelineReportHandler pipelineReportHandler =
-        new PipelineReportHandler(scmSafeModeManager, pipelineManager, conf);
+        new PipelineReportHandler(
+            scmSafeModeManager, pipelineManager, scmContext, conf);
     CommandStatusReportHandler cmdStatusReportHandler =
         new CommandStatusReportHandler();
 
     NewNodeHandler newNodeHandler = new NewNodeHandler(pipelineManager,
-        scmDecommissionManager, conf);
+        scmDecommissionManager, conf, serviceManager);
     StaleNodeHandler staleNodeHandler =
         new StaleNodeHandler(scmNodeManager, pipelineManager, conf);
     DeadNodeHandler deadNodeHandler = new DeadNodeHandler(scmNodeManager,
@@ -308,20 +315,21 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     StartDatanodeAdminHandler datanodeStartAdminHandler =
         new StartDatanodeAdminHandler(scmNodeManager, pipelineManager);
     NonHealthyToHealthyNodeHandler nonHealthyToHealthyNodeHandler =
-        new NonHealthyToHealthyNodeHandler(pipelineManager, conf);
+        new NonHealthyToHealthyNodeHandler(conf, serviceManager);
     ContainerActionsHandler actionsHandler = new ContainerActionsHandler();
     PendingDeleteHandler pendingDeleteHandler =
         new PendingDeleteHandler(scmBlockManager.getSCMBlockDeletingService());
 
     ContainerReportHandler containerReportHandler =
-        new ContainerReportHandler(scmNodeManager, containerManager, conf);
+        new ContainerReportHandler(
+            scmNodeManager, containerManager, scmContext, conf);
 
     IncrementalContainerReportHandler incrementalContainerReportHandler =
         new IncrementalContainerReportHandler(
-            scmNodeManager, containerManager);
+            scmNodeManager, containerManager, scmContext);
 
     PipelineActionHandler pipelineActionHandler =
-        new PipelineActionHandler(pipelineManager, conf);
+        new PipelineActionHandler(pipelineManager, scmContext, conf);
 
     scmAdminUsernames = conf.getTrimmedStringCollection(OzoneConfigKeys
         .OZONE_ADMINISTRATORS);
@@ -354,16 +362,9 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     eventQueue
         .addHandler(SCMEvents.PENDING_DELETE_STATUS, pendingDeleteHandler);
     eventQueue.addHandler(SCMEvents.DELETE_BLOCK_STATUS,
-        (DeletedBlockLogImpl) scmBlockManager.getDeletedBlockLog());
+        (DeletedBlockLogImplV2) scmBlockManager.getDeletedBlockLog());
     eventQueue.addHandler(SCMEvents.PIPELINE_ACTIONS, pipelineActionHandler);
     eventQueue.addHandler(SCMEvents.PIPELINE_REPORT, pipelineReportHandler);
-    eventQueue.addHandler(SCMEvents.SAFE_MODE_STATUS, clientProtocolServer);
-    eventQueue.addHandler(SCMEvents.SAFE_MODE_STATUS, scmBlockManager);
-    eventQueue
-        .addHandler(SCMEvents.DELAYED_SAFE_MODE_STATUS, replicationManager);
-    eventQueue
-        .addHandler(SCMEvents.DELAYED_SAFE_MODE_STATUS, pipelineManager);
-
 
     // Emit initial safe mode status, as now handlers are registered.
     scmSafeModeManager.emitSafeModeStatus();
@@ -425,14 +426,27 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     if (configurator.getSCMHAManager() != null) {
       scmHAManager = configurator.getSCMHAManager();
     } else {
-      scmHAManager = new SCMHAManagerImpl(conf);
+      scmHAManager = new SCMHAManagerImpl(conf, this);
+    }
+
+    if (configurator.getScmContext() != null) {
+      scmContext = configurator.getScmContext();
+    } else {
+      // non-leader of term 0, in safe mode, preCheck not completed.
+      scmContext = new SCMContext.Builder()
+          .setLeader(false)
+          .setTerm(0)
+          .setIsInSafeMode(true)
+          .setIsPreCheckComplete(false)
+          .setSCM(this)
+          .build();
     }
 
     if(configurator.getScmNodeManager() != null) {
       scmNodeManager = configurator.getScmNodeManager();
     } else {
       scmNodeManager = new SCMNodeManager(
-          conf, scmStorageConfig, eventQueue, clusterMap, scmHAManager);
+          conf, scmStorageConfig, eventQueue, clusterMap, scmContext);
     }
 
     placementMetrics = SCMContainerPlacementMetrics.create();
@@ -449,7 +463,9 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
               scmHAManager,
               scmNodeManager,
               scmMetadataStore.getPipelineTable(),
-              eventQueue);
+              eventQueue,
+              scmContext,
+              serviceManager);
     }
 
     if (configurator.getContainerManager() != null) {
@@ -469,10 +485,12 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       replicationManager = configurator.getReplicationManager();
     }  else {
       replicationManager = new ReplicationManager(
-          conf.getObject(ReplicationManagerConfiguration.class),
+          conf,
           containerManager,
           containerPlacementPolicy,
           eventQueue,
+          scmContext,
+          serviceManager,
           new LockManager<>(conf),
           scmNodeManager);
     }
@@ -481,7 +499,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     } else {
       scmSafeModeManager = new SCMSafeModeManager(conf,
           containerManager.getContainers(),
-          pipelineManager, eventQueue);
+          pipelineManager, eventQueue, serviceManager, scmContext);
     }
     scmDecommissionManager = new NodeDecommissionManager(conf, scmNodeManager,
         containerManager, eventQueue, replicationManager);
@@ -854,7 +872,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    * Stop service.
    */
   public void stop() {
-
     try {
       LOG.info("Stopping Replication Manager Service.");
       replicationManager.stop();
@@ -948,6 +965,12 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     IOUtils.cleanupWithLogger(LOG, pipelineManager);
 
     try {
+      scmHAManager.shutdown();
+    } catch (Exception ex) {
+      LOG.error("SCM HA Manager stop failed", ex);
+    }
+
+    try {
       scmMetadataStore.stop();
     } catch (Exception ex) {
       LOG.error("SCM Metadata store stop failed", ex);
@@ -955,12 +978,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
 
     if (ms != null) {
       ms.stop();
-    }
-
-    try {
-      scmHAManager.shutdown();
-    } catch (Exception ex) {
-      LOG.error("SCM HA Manager stop failed", ex);
     }
 
     scmSafeModeManager.stop();
@@ -1002,6 +1019,13 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    */
   public NodeDecommissionManager getScmDecommissionManager() {
     return scmDecommissionManager;
+  }
+
+  /**
+   * Returns SCMHAManager.
+   */
+  public SCMHAManager getScmHAManager() {
+    return scmHAManager;
   }
 
   /**
@@ -1052,7 +1076,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
    * @return - if the current scm is the leader.
    */
   public boolean checkLeader() {
-    return scmHAManager.isLeader().isPresent();
+    return scmContext.isLeader();
   }
 
   public void checkAdminAccess(String remoteUser) throws IOException {
@@ -1140,6 +1164,20 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   }
 
   /**
+   * Returns SCMContext.
+   */
+  public SCMContext getScmContext() {
+    return scmContext;
+  }
+
+  /**
+   * Returns SCMServiceManager.
+   */
+  public SCMServiceManager getSCMServiceManager() {
+    return serviceManager;
+  }
+
+  /**
    * Force SCM out of safe mode.
    */
   public boolean exitSafeMode() {
@@ -1207,9 +1245,5 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
 
   public String getClusterId() {
     return getScmStorageConfig().getClusterID();
-  }
-
-  public SCMHAManager getScmHAManager() {
-    return scmHAManager;
   }
 }

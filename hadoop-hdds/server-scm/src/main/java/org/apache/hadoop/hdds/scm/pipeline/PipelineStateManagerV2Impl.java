@@ -22,6 +22,7 @@ import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.ha.DBTransactionBuffer;
 import org.apache.hadoop.hdds.scm.ha.SCMHAInvocationHandler;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
@@ -51,18 +52,20 @@ public class PipelineStateManagerV2Impl implements StateManager {
 
   private final PipelineStateMap pipelineStateMap;
   private final NodeManager nodeManager;
-  private final Table<PipelineID, Pipeline> pipelineStore;
+  private Table<PipelineID, Pipeline> pipelineStore;
+  private final DBTransactionBuffer transactionBuffer;
 
   // Protect potential contentions between RaftServer and PipelineManager.
   // See https://issues.apache.org/jira/browse/HDDS-4560
   private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
   public PipelineStateManagerV2Impl(
-      Table<PipelineID, Pipeline> pipelineStore, NodeManager nodeManager)
-      throws IOException {
+      Table<PipelineID, Pipeline> pipelineStore, NodeManager nodeManager,
+      DBTransactionBuffer buffer) throws IOException {
     this.pipelineStateMap = new PipelineStateMap();
     this.nodeManager = nodeManager;
     this.pipelineStore = pipelineStore;
+    this.transactionBuffer = buffer;
     initialize();
   }
 
@@ -78,7 +81,8 @@ public class PipelineStateManagerV2Impl implements StateManager {
         iterator = pipelineStore.iterator();
     while (iterator.hasNext()) {
       Pipeline pipeline = iterator.next().getValue();
-      addPipeline(pipeline.getProtobufMessage());
+      pipelineStateMap.addPipeline(pipeline);
+      nodeManager.addPipeline(pipeline);
     }
   }
 
@@ -88,10 +92,13 @@ public class PipelineStateManagerV2Impl implements StateManager {
     lock.writeLock().lock();
     try {
       Pipeline pipeline = Pipeline.getFromProtobuf(pipelineProto);
-      pipelineStore.put(pipeline.getId(), pipeline);
-      pipelineStateMap.addPipeline(pipeline);
-      nodeManager.addPipeline(pipeline);
-      LOG.info("Created pipeline {}.", pipeline);
+      if (pipelineStore != null) {
+        pipelineStore.putWithBatch(transactionBuffer.getCurrentBatchOperation(),
+            pipeline.getId(), pipeline);
+        pipelineStateMap.addPipeline(pipeline);
+        nodeManager.addPipeline(pipeline);
+        LOG.info("Created pipeline {}.", pipeline);
+      }
     } finally {
       lock.writeLock().unlock();
     }
@@ -215,7 +222,10 @@ public class PipelineStateManagerV2Impl implements StateManager {
     lock.writeLock().lock();
     try {
       PipelineID pipelineID = PipelineID.getFromProtobuf(pipelineIDProto);
-      pipelineStore.delete(pipelineID);
+      if (pipelineStore != null) {
+        pipelineStore.deleteWithBatch(
+            transactionBuffer.getCurrentBatchOperation(), pipelineID);
+      }
       Pipeline pipeline = pipelineStateMap.removePipeline(pipelineID);
       nodeManager.removePipeline(pipeline);
       LOG.info("Pipeline {} removed.", pipeline);
@@ -240,11 +250,24 @@ public class PipelineStateManagerV2Impl implements StateManager {
   public void updatePipelineState(
       HddsProtos.PipelineID pipelineIDProto, HddsProtos.PipelineState newState)
       throws IOException {
+    PipelineID pipelineID = PipelineID.getFromProtobuf(pipelineIDProto);
+    Pipeline.PipelineState oldState =
+        getPipeline(pipelineID).getPipelineState();
     lock.writeLock().lock();
     try {
-      pipelineStateMap.updatePipelineState(
-          PipelineID.getFromProtobuf(pipelineIDProto),
-          Pipeline.PipelineState.fromProtobuf(newState));
+      // null check is here to prevent the case where SCM store
+      // is closed but the staleNode handlers/pipeline creations
+      // still try to access it.
+      if (pipelineStore != null) {
+        pipelineStateMap.updatePipelineState(pipelineID,
+            Pipeline.PipelineState.fromProtobuf(newState));
+        pipelineStore.putWithBatch(transactionBuffer.getCurrentBatchOperation(),
+            pipelineID, getPipeline(pipelineID));
+      }
+    } catch (IOException ex) {
+      LOG.warn("Pipeline {} state update failed", pipelineID);
+      // revert back to old state in memory
+      pipelineStateMap.updatePipelineState(pipelineID, oldState);
     } finally {
       lock.writeLock().unlock();
     }
@@ -252,7 +275,15 @@ public class PipelineStateManagerV2Impl implements StateManager {
 
   @Override
   public void close() throws Exception {
-    pipelineStore.close();
+    lock.writeLock().lock();
+    try {
+      pipelineStore.close();
+      pipelineStore = null;
+    } catch (Exception ex) {
+      LOG.error("Pipeline  store close failed", ex);
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   // TODO Remove legacy
@@ -308,6 +339,12 @@ public class PipelineStateManagerV2Impl implements StateManager {
     private Table<PipelineID, Pipeline> pipelineStore;
     private NodeManager nodeManager;
     private SCMRatisServer scmRatisServer;
+    private DBTransactionBuffer transactionBuffer;
+
+    public Builder setSCMDBTransactionBuffer(DBTransactionBuffer buffer) {
+      this.transactionBuffer = buffer;
+      return this;
+    }
 
     public Builder setRatisServer(final SCMRatisServer ratisServer) {
       scmRatisServer = ratisServer;
@@ -329,7 +366,8 @@ public class PipelineStateManagerV2Impl implements StateManager {
       Preconditions.checkNotNull(pipelineStore);
 
       final StateManager pipelineStateManager =
-          new PipelineStateManagerV2Impl(pipelineStore, nodeManager);
+          new PipelineStateManagerV2Impl(
+              pipelineStore, nodeManager, transactionBuffer);
 
       final SCMHAInvocationHandler invocationHandler =
           new SCMHAInvocationHandler(SCMRatisProtocol.RequestType.PIPELINE,

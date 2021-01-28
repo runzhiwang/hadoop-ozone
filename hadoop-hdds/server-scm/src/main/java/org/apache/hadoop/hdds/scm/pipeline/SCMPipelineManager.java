@@ -42,8 +42,10 @@ import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager.SafeModeStatus;
+import org.apache.hadoop.hdds.server.events.EventHandler;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.utils.Scheduler;
 import org.apache.hadoop.hdds.utils.db.Table;
@@ -63,7 +65,8 @@ import static org.apache.hadoop.hdds.scm.exceptions.SCMException.ResultCodes.FAI
  * for pipelines must come via PipelineManager. It synchronises all write
  * and read operations via a ReadWriteLock.
  */
-public class SCMPipelineManager implements PipelineManager {
+public class SCMPipelineManager implements
+    PipelineManager, EventHandler<SafeModeStatus> {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(SCMPipelineManager.class);
@@ -97,7 +100,7 @@ public class SCMPipelineManager implements PipelineManager {
     this(conf, nodeManager, pipelineStore, eventPublisher, null, null);
     this.stateManager = new PipelineStateManager();
     this.pipelineFactory = new PipelineFactory(nodeManager,
-        stateManager, conf, eventPublisher);
+        stateManager, conf, eventPublisher, SCMContext.emptyContext());
     this.pipelineStore = pipelineStore;
     initializePipelineState();
   }
@@ -407,7 +410,7 @@ public class SCMPipelineManager implements PipelineManager {
   }
 
   private void updatePipelineStateInDb(PipelineID pipelineId,
-                                       Pipeline.PipelineState state)
+                                       Pipeline.PipelineState oldState)
           throws IOException {
     // null check is here to prevent the case where SCM store
     // is closed but the staleNode handlers/pipleine creations
@@ -416,9 +419,9 @@ public class SCMPipelineManager implements PipelineManager {
       try {
         pipelineStore.put(pipelineId, getPipeline(pipelineId));
       } catch (IOException ex) {
-        LOG.info("Pipeline {} state update failed", pipelineId);
+        LOG.warn("Pipeline {} state update failed", pipelineId);
         // revert back to old state in memory
-        stateManager.updatePipelineState(pipelineId, state);
+        stateManager.updatePipelineState(pipelineId, oldState);
       }
     }
   }

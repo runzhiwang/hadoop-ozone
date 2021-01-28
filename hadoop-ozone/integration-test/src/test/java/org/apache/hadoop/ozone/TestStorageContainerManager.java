@@ -41,7 +41,9 @@ import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +75,7 @@ import org.apache.hadoop.hdds.scm.container.ReplicationManager;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.node.DatanodeInfo;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.hdds.scm.node.NodeStatus;
@@ -280,8 +283,9 @@ public class TestStorageContainerManager {
             cluster.getStorageContainerManager());
       }
 
-      Map<Long, List<Long>> containerBlocks = createDeleteTXLog(delLog,
-          keyLocations, helper);
+      Map<Long, List<Long>> containerBlocks = createDeleteTXLog(
+          cluster.getStorageContainerManager(),
+          delLog, keyLocations, helper);
       Set<Long> containerIDs = containerBlocks.keySet();
 
       // Verify a few TX gets created in the TX log.
@@ -294,6 +298,8 @@ public class TestStorageContainerManager {
       // empty again.
       GenericTestUtils.waitFor(() -> {
         try {
+          cluster.getStorageContainerManager().getScmHAManager()
+              .getDBTransactionBuffer().flush();
           return delLog.getNumOfValidTransactions() == 0;
         } catch (IOException e) {
           return false;
@@ -305,10 +311,13 @@ public class TestStorageContainerManager {
       // but unknown block IDs.
       for (Long containerID : containerBlocks.keySet()) {
         // Add 2 TXs per container.
-        delLog.addTransaction(containerID,
-            Collections.singletonList(RandomUtils.nextLong()));
-        delLog.addTransaction(containerID,
-            Collections.singletonList(RandomUtils.nextLong()));
+        Map<Long, List<Long>> deletedBlocks = new HashMap<>();
+        List<Long> blocks = new ArrayList<>();
+        blocks.add(RandomUtils.nextLong());
+        blocks.add(RandomUtils.nextLong());
+        deletedBlocks.put(containerID, blocks);
+        addTransactions(cluster.getStorageContainerManager(), delLog,
+            deletedBlocks);
       }
 
       // Verify a few TX gets created in the TX log.
@@ -318,11 +327,13 @@ public class TestStorageContainerManager {
       // eventually these TX will success.
       GenericTestUtils.waitFor(() -> {
         try {
+          cluster.getStorageContainerManager().getScmHAManager()
+              .getDBTransactionBuffer().flush();
           return delLog.getFailedTransactions().size() == 0;
         } catch (IOException e) {
           return false;
         }
-      }, 1000, 10000);
+      }, 1000, 20000);
     } finally {
       cluster.shutdown();
     }
@@ -373,7 +384,8 @@ public class TestStorageContainerManager {
             cluster.getStorageContainerManager());
       }
 
-      createDeleteTXLog(delLog, keyLocations, helper);
+      createDeleteTXLog(cluster.getStorageContainerManager(),
+          delLog, keyLocations, helper);
       // Verify a few TX gets created in the TX log.
       Assert.assertTrue(delLog.getNumOfValidTransactions() > 0);
 
@@ -399,7 +411,9 @@ public class TestStorageContainerManager {
     }
   }
 
-  private Map<Long, List<Long>> createDeleteTXLog(DeletedBlockLog delLog,
+  private Map<Long, List<Long>> createDeleteTXLog(
+      StorageContainerManager scm,
+      DeletedBlockLog delLog,
       Map<String, OmKeyInfo> keyLocations,
       TestStorageContainerManagerHelper helper) throws IOException {
     // These keys will be written into a bunch of containers,
@@ -437,9 +451,7 @@ public class TestStorageContainerManager {
         }
       });
     }
-    for (Map.Entry<Long, List<Long>> tx : containerBlocks.entrySet()) {
-      delLog.addTransaction(tx.getKey(), tx.getValue());
-    }
+    addTransactions(scm, delLog, containerBlocks);
 
     return containerBlocks;
   }
@@ -647,10 +659,16 @@ public class TestStorageContainerManager {
           dnUuid, closeContainerCommand);
 
       GenericTestUtils.waitFor(() -> {
-        return replicationManager.isRunning();
+        SCMContext scmContext
+            = cluster.getStorageContainerManager().getScmContext();
+        return !scmContext.isInSafeMode() && scmContext.isLeader();
       }, 1000, 25000);
 
+      // After safe mode is off, ReplicationManager starts to run with a delay.
+      Thread.sleep(5000);
       // Give ReplicationManager some time to process the containers.
+      cluster.getStorageContainerManager()
+          .getReplicationManager().processContainersNow();
       Thread.sleep(5000);
 
       verify(publisher).fireEvent(eq(SCMEvents.DATANODE_COMMAND), argThat(new
@@ -658,6 +676,14 @@ public class TestStorageContainerManager {
     } finally {
       cluster.shutdown();
     }
+  }
+
+  private void addTransactions(StorageContainerManager scm,
+      DeletedBlockLog delLog,
+      Map<Long, List<Long>> containerBlocksMap)
+      throws IOException {
+    delLog.addTransactions(containerBlocksMap);
+    scm.getScmHAManager().getDBTransactionBuffer().flush();
   }
 
   @SuppressWarnings("visibilitymodifier")

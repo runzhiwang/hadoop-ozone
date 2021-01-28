@@ -20,31 +20,73 @@ package org.apache.hadoop.hdds.scm.ha;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import com.google.common.base.Preconditions;
 import com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.hadoop.hdds.scm.block.DeletedBlockLog;
+import org.apache.hadoop.hdds.scm.block.DeletedBlockLogImplV2;
+import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.ratis.protocol.Message;
+import org.apache.ratis.protocol.RaftGroupMemberId;
+import org.apache.ratis.protocol.RaftPeerId;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
+import org.apache.hadoop.util.Time;
+import org.apache.ratis.server.protocol.TermIndex;
+import org.apache.ratis.statemachine.SnapshotInfo;
 import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
 
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol.RequestType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.apache.hadoop.hdds.scm.exceptions.SCMException.ResultCodes.SCM_NOT_INITIALIZED;
 
 /**
  * TODO.
  */
 public class SCMStateMachine extends BaseStateMachine {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(SCMStateMachine.class);
 
+  private final StorageContainerManager scm;
+  private final SCMRatisServer ratisServer;
   private final Map<RequestType, Object> handlers;
+  private final DBTransactionBuffer transactionBuffer;
 
-  public SCMStateMachine() {
+  public SCMStateMachine(final StorageContainerManager scm,
+      final SCMRatisServer ratisServer, DBTransactionBuffer buffer)
+      throws SCMException {
+    this.scm = scm;
+    this.ratisServer = ratisServer;
     this.handlers = new EnumMap<>(RequestType.class);
+    this.transactionBuffer = buffer;
+    SCMTransactionInfo latestTrxInfo =
+        this.transactionBuffer.getLatestTrxInfo();
+    if (!latestTrxInfo.isInitialized()) {
+      if (!updateLastAppliedTermIndex(latestTrxInfo.getTerm(),
+          latestTrxInfo.getTransactionIndex())) {
+        throw new SCMException(
+            String.format("Failed to update LastAppliedTermIndex " +
+                    "in StateMachine to term:{} index:{}",
+                latestTrxInfo.getTerm(), latestTrxInfo.getTransactionIndex()
+            ), SCM_NOT_INITIALIZED);
+      }
+    }
   }
 
   public void registerHandler(RequestType type, Object handler) {
     handlers.put(type, handler);
+  }
+
+  @Override
+  public SnapshotInfo getLatestSnapshot() {
+    return transactionBuffer.getLatestSnapshot();
   }
 
   @Override
@@ -56,14 +98,17 @@ public class SCMStateMachine extends BaseStateMachine {
       final SCMRatisRequest request = SCMRatisRequest.decode(
           Message.valueOf(trx.getStateMachineLogEntry().getLogData()));
       applyTransactionFuture.complete(process(request));
+      transactionBuffer.updateLatestTrxInfo(SCMTransactionInfo.builder()
+          .setCurrentTerm(trx.getLogEntry().getTerm())
+          .setTransactionIndex(trx.getLogEntry().getIndex())
+          .build());
     } catch (Exception ex) {
       applyTransactionFuture.completeExceptionally(ex);
     }
     return applyTransactionFuture;
   }
 
-  private Message process(final SCMRatisRequest request)
-      throws Exception {
+  private Message process(final SCMRatisRequest request) throws Exception {
     try {
       final Object handler = handlers.get(request.getType());
 
@@ -79,7 +124,6 @@ public class SCMStateMachine extends BaseStateMachine {
       final Object result = handler.getClass().getMethod(
           request.getOperation(), argumentTypes.toArray(new Class<?>[0]))
           .invoke(handler, request.getArguments());
-
       return SCMRatisResponse.encode(result);
     } catch (NoSuchMethodException | SecurityException ex) {
       throw new InvalidProtocolBufferException(ex.getMessage());
@@ -89,4 +133,65 @@ public class SCMStateMachine extends BaseStateMachine {
     }
   }
 
+  @Override
+  public void notifyNotLeader(Collection<TransactionContext> pendingEntries) {
+    LOG.info("current leader SCM steps down.");
+
+    scm.getScmContext().updateLeaderAndTerm(false, 0);
+    scm.getSCMServiceManager().notifyStatusChanged();
+  }
+
+  @Override
+  public void notifyLeaderChanged(RaftGroupMemberId groupMemberId,
+                                  RaftPeerId newLeaderId) {
+    if (!groupMemberId.getPeerId().equals(newLeaderId)) {
+      LOG.info("leader changed, yet current SCM is still follower.");
+      return;
+    }
+
+    long term = scm.getScmHAManager()
+        .getRatisServer()
+        .getDivision()
+        .getInfo()
+        .getCurrentTerm();
+
+    LOG.info("current SCM becomes leader of term {}.", term);
+
+    scm.getScmContext().updateLeaderAndTerm(true, term);
+    scm.getSCMServiceManager().notifyStatusChanged();
+
+    DeletedBlockLog deletedBlockLog = scm.getScmBlockManager()
+        .getDeletedBlockLog();
+    Preconditions.checkArgument(
+        deletedBlockLog instanceof DeletedBlockLogImplV2);
+    ((DeletedBlockLogImplV2) deletedBlockLog)
+          .clearTransactionToDNsCommitMap();
+  }
+
+  @Override
+  public long takeSnapshot() throws IOException {
+    long startTime = Time.monotonicNow();
+    TermIndex lastTermIndex = getLastAppliedTermIndex();
+    long lastAppliedIndex = lastTermIndex.getIndex();
+    SCMTransactionInfo lastAppliedTrxInfo =
+        SCMTransactionInfo.fromTermIndex(lastTermIndex);
+    if (transactionBuffer.getLatestTrxInfo()
+        .compareTo(lastAppliedTrxInfo) < 0) {
+      transactionBuffer.updateLatestTrxInfo(
+          SCMTransactionInfo.builder()
+              .setCurrentTerm(lastTermIndex.getTerm())
+              .setTransactionIndex(lastTermIndex.getIndex())
+              .build());
+      transactionBuffer.setLatestSnapshot(
+          transactionBuffer.getLatestTrxInfo().toSnapshotInfo());
+    } else {
+      lastAppliedIndex =
+          transactionBuffer.getLatestTrxInfo().getTransactionIndex();
+    }
+
+    transactionBuffer.flush();
+    LOG.info("Current Snapshot Index {}, takeSnapshot took {} ms",
+        lastAppliedIndex, Time.monotonicNow() - startTime);
+    return lastAppliedIndex;
+  }
 }

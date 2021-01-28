@@ -32,6 +32,8 @@ import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.MockNodeManager;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.scm.ha.MockSCMHAManager;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
+import org.apache.hadoop.hdds.scm.ha.SCMServiceManager;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreImpl;
 import org.apache.hadoop.hdds.scm.pipeline.MockRatisPipelineProvider;
@@ -54,6 +56,8 @@ public class TestHealthyPipelineSafeModeRule {
   public void testHealthyPipelineSafeModeRuleWithNoPipelines()
       throws Exception {
     EventQueue eventQueue = new EventQueue();
+    SCMServiceManager serviceManager = new SCMServiceManager();
+    SCMContext scmContext = SCMContext.emptyContext();
     List<ContainerInfo> containers =
             new ArrayList<>(HddsTestUtils.getContainerInfo(1));
 
@@ -77,14 +81,17 @@ public class TestHealthyPipelineSafeModeRule {
               MockSCMHAManager.getInstance(true),
               nodeManager,
               scmMetadataStore.getPipelineTable(),
-              eventQueue);
+              eventQueue,
+              scmContext,
+              serviceManager);
       PipelineProvider mockRatisProvider =
           new MockRatisPipelineProvider(nodeManager,
               pipelineManager.getStateManager(), config);
       pipelineManager.setPipelineProvider(HddsProtos.ReplicationType.RATIS,
           mockRatisProvider);
       SCMSafeModeManager scmSafeModeManager = new SCMSafeModeManager(
-          config, containers, pipelineManager, eventQueue);
+          config, containers, pipelineManager, eventQueue,
+          serviceManager, scmContext);
 
       HealthyPipelineSafeModeRule healthyPipelineSafeModeRule =
           scmSafeModeManager.getHealthyPipelineSafeModeRule();
@@ -103,6 +110,8 @@ public class TestHealthyPipelineSafeModeRule {
         TestHealthyPipelineSafeModeRule.class.getName() + UUID.randomUUID());
 
     EventQueue eventQueue = new EventQueue();
+    SCMServiceManager serviceManager = new SCMServiceManager();
+    SCMContext scmContext = SCMContext.emptyContext();
     List<ContainerInfo> containers =
             new ArrayList<>(HddsTestUtils.getContainerInfo(1));
 
@@ -126,8 +135,9 @@ public class TestHealthyPipelineSafeModeRule {
               MockSCMHAManager.getInstance(true),
               nodeManager,
               scmMetadataStore.getPipelineTable(),
-              eventQueue);
-      pipelineManager.allowPipelineCreation();
+              eventQueue,
+              scmContext,
+              serviceManager);
 
       PipelineProvider mockRatisProvider =
           new MockRatisPipelineProvider(nodeManager,
@@ -160,7 +170,8 @@ public class TestHealthyPipelineSafeModeRule {
       MockRatisPipelineProvider.markPipelineHealthy(pipeline3);
 
       SCMSafeModeManager scmSafeModeManager = new SCMSafeModeManager(
-          config, containers, pipelineManager, eventQueue);
+          config, containers, pipelineManager, eventQueue,
+          serviceManager, scmContext);
 
       HealthyPipelineSafeModeRule healthyPipelineSafeModeRule =
           scmSafeModeManager.getHealthyPipelineSafeModeRule();
@@ -196,6 +207,8 @@ public class TestHealthyPipelineSafeModeRule {
         TestHealthyPipelineSafeModeRule.class.getName() + UUID.randomUUID());
 
     EventQueue eventQueue = new EventQueue();
+    SCMServiceManager serviceManager = new SCMServiceManager();
+    SCMContext scmContext = SCMContext.emptyContext();
     List<ContainerInfo> containers =
             new ArrayList<>(HddsTestUtils.getContainerInfo(1));
 
@@ -220,9 +233,10 @@ public class TestHealthyPipelineSafeModeRule {
               MockSCMHAManager.getInstance(true),
               nodeManager,
               scmMetadataStore.getPipelineTable(),
-              eventQueue);
+              eventQueue,
+              scmContext,
+              serviceManager);
 
-      pipelineManager.allowPipelineCreation();
       PipelineProvider mockRatisProvider =
           new MockRatisPipelineProvider(nodeManager,
               pipelineManager.getStateManager(), config);
@@ -254,7 +268,8 @@ public class TestHealthyPipelineSafeModeRule {
       MockRatisPipelineProvider.markPipelineHealthy(pipeline3);
 
       SCMSafeModeManager scmSafeModeManager = new SCMSafeModeManager(
-          config, containers, pipelineManager, eventQueue);
+          config, containers, pipelineManager, eventQueue,
+          serviceManager, scmContext);
 
       HealthyPipelineSafeModeRule healthyPipelineSafeModeRule =
           scmSafeModeManager.getHealthyPipelineSafeModeRule();

@@ -29,6 +29,9 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.TestUtils;
 import org.apache.hadoop.hdds.scm.ha.MockSCMHAManager;
+import org.apache.hadoop.hdds.scm.ha.SCMContext;
+import org.apache.hadoop.hdds.scm.ha.SCMService.Event;
+import org.apache.hadoop.hdds.scm.ha.SCMServiceManager;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStore;
 import org.apache.hadoop.hdds.scm.metadata.SCMMetadataStoreImpl;
 import org.apache.hadoop.hdds.scm.pipeline.MockRatisPipelineProvider;
@@ -61,6 +64,7 @@ public class TestCloseContainerEventHandler {
   private static long size;
   private static File testDir;
   private static EventQueue eventQueue;
+  private static SCMContext scmContext;
   private static SCMMetadataStore scmMetadataStore;
 
   @BeforeClass
@@ -75,7 +79,10 @@ public class TestCloseContainerEventHandler {
     configuration.setInt(ScmConfigKeys.OZONE_SCM_RATIS_PIPELINE_LIMIT, 16);
     nodeManager = new MockNodeManager(true, 10);
     eventQueue = new EventQueue();
+    scmContext = SCMContext.emptyContext();
     scmMetadataStore = new SCMMetadataStoreImpl(configuration);
+
+    SCMServiceManager serviceManager = new SCMServiceManager();
 
     pipelineManager =
         PipelineManagerV2Impl.newPipelineManager(
@@ -83,9 +90,10 @@ public class TestCloseContainerEventHandler {
             MockSCMHAManager.getInstance(true),
             nodeManager,
             scmMetadataStore.getPipelineTable(),
-            eventQueue);
+            eventQueue,
+            scmContext,
+            serviceManager);
 
-    pipelineManager.allowPipelineCreation();
     PipelineProvider mockRatisProvider =
         new MockRatisPipelineProvider(nodeManager,
             pipelineManager.getStateManager(), configuration, eventQueue);
@@ -95,11 +103,13 @@ public class TestCloseContainerEventHandler {
         MockSCMHAManager.getInstance(true),
         pipelineManager,
         scmMetadataStore.getContainerTable());
-    pipelineManager.triggerPipelineCreation();
+
+    // trigger BackgroundPipelineCreator to take effect.
+    serviceManager.notifyEventTriggered(Event.PRE_CHECK_COMPLETED);
+
     eventQueue.addHandler(CLOSE_CONTAINER,
         new CloseContainerEventHandler(
-                pipelineManager,
-                containerManager));
+            pipelineManager, containerManager, scmContext));
     eventQueue.addHandler(DATANODE_COMMAND, nodeManager);
     // Move all pipelines created by background from ALLOCATED to OPEN state
     Thread.sleep(2000);

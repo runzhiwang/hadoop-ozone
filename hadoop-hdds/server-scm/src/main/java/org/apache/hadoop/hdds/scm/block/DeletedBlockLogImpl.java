@@ -260,27 +260,6 @@ public class DeletedBlockLogImpl
     return false;
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * @param containerID - container ID.
-   * @param blocks      - blocks that belong to the same container.
-   * @throws IOException
-   */
-  @Override
-  public void addTransaction(long containerID, List<Long> blocks)
-      throws IOException {
-    lock.lock();
-    try {
-      Long nextTXID = scmMetadataStore.getNextDeleteBlockTXID();
-      DeletedBlocksTransaction tx =
-          constructNewTransaction(nextTXID, containerID, blocks);
-      scmMetadataStore.getDeletedBlocksTXTable().put(nextTXID, tx);
-    } finally {
-      lock.unlock();
-    }
-  }
-
   @Override
   public int getNumOfValidTransactions() throws IOException {
     lock.lock();
