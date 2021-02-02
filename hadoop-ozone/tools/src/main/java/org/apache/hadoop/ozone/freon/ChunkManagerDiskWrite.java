@@ -16,6 +16,7 @@
  */
 package org.apache.hadoop.ozone.freon;
 
+import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -153,7 +154,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
     return null;
   }
 
-  private void writeChunk(long l) {
+  private void writeChunk(long l) throws Exception {
     //based on the thread naming convention: pool-N-thread-M
     final int threadID =
         Integer.parseInt(Thread.currentThread().getName().split("-")[3]);
@@ -182,6 +183,7 @@ public class ChunkManagerDiskWrite extends BaseFreonGenerator implements
       } catch (StorageContainerException e) {
         throw new UncheckedIOException(e);
       }
+      return null;
     });
 
   }

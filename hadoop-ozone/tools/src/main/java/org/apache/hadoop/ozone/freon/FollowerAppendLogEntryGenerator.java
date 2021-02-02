@@ -214,7 +214,7 @@ public class FollowerAppendLogEntryGenerator extends BaseAppendLogGenerator
   /**
    * Seend a new HB and record the call id to handle response.
    */
-  private void sendAppendLogEntryRequest(long sequence) {
+  private void sendAppendLogEntryRequest(long sequence) throws Exception {
     timer.time(() -> {
       try {
         long callId = callIdRandom.nextLong();
@@ -225,6 +225,7 @@ public class FollowerAppendLogEntryGenerator extends BaseAppendLogGenerator
             "Error while sending new append entry request (HB) to the "
                 + "follower", e);
       }
+      return null;
     });
   }
 

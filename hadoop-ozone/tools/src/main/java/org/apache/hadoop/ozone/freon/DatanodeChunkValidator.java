@@ -236,6 +236,7 @@ public class DatanodeChunkValidator extends BaseFreonGenerator
       } catch (IOException e) {
         LOG.warn("Could not read chunk due to IOException: ", e);
       }
+      return null;
     });
 
   }

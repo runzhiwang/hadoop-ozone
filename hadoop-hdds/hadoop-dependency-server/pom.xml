@@ -71,6 +71,10 @@ https://maven.apache.org/xsd/maven-4.0.0.xsd">
           <groupId>com.sun.jersey</groupId>
           <artifactId>jersey-json</artifactId>
         </exclusion>
+        <exclusion>
+          <artifactId>metrics-core</artifactId>
+          <groupId>com.codahale.metrics</groupId>
+        </exclusion>
       </exclusions>
     </dependency>
     <dependency>
