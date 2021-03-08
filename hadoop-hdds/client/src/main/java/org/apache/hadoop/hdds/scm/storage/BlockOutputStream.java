@@ -582,6 +582,9 @@ public class BlockOutputStream extends OutputStream {
         && bufferPool != null && bufferPool.getSize() > 0) {
       try {
         handleFlush(true);
+        for (int i = 0; i < futures.size(); i ++) {
+          futures.get(i).get();
+        }
         out.closeAsync().thenApplyAsync(r -> {
           return null;
         }, responseExecutor);
