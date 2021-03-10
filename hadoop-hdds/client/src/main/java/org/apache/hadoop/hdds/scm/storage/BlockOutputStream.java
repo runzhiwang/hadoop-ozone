@@ -586,6 +586,7 @@ public class BlockOutputStream extends OutputStream {
           futures.get(i).get();
         }
         out.closeAsync().thenApplyAsync(r -> {
+          System.err.println("wangjie close stream");
           return null;
         }, responseExecutor);
       } catch (ExecutionException e) {
